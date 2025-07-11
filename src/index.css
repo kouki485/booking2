@@ -1,0 +1,84 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  * {
+    box-sizing: border-box;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-salon-500 hover:bg-salon-600 text-white font-medium py-2 px-4 rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply bg-white hover:bg-gray-50 text-salon-500 border border-salon-500 font-medium py-2 px-4 rounded-lg transition-colors duration-200;
+  }
+  
+  .input-field {
+    @apply w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-salon-500 focus:border-salon-500 outline-none transition-colors duration-200;
+  }
+  
+  .calendar-cell {
+    @apply w-full h-12 border border-gray-200 flex items-center justify-center text-sm transition-colors duration-200;
+  }
+  
+  .calendar-cell-available {
+    @apply bg-salon-50 text-salon-700 hover:bg-salon-100 cursor-pointer;
+  }
+  
+  .calendar-cell-partial {
+    @apply bg-yellow-50 text-yellow-700 hover:bg-yellow-100 cursor-pointer;
+  }
+  
+  .calendar-cell-full {
+    @apply bg-red-50 text-red-700 cursor-not-allowed;
+  }
+  
+  .calendar-cell-disabled {
+    @apply bg-gray-100 text-gray-400 cursor-not-allowed;
+  }
+}
+
+/* カスタムスクロールバー */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a8a8a8;
+}
+
+/* スマートフォン向けタッチ最適化 */
+@media (max-width: 768px) {
+  .calendar-cell {
+    @apply h-10 text-xs;
+  }
+  
+  .btn-primary,
+  .btn-secondary {
+    @apply py-3 px-6 text-base;
+  }
+} 
