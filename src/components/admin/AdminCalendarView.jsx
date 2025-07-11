@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
+import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useBookings } from '../../hooks/useBookings';
 
 const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
   const [currentWeek, setCurrentWeek] = useState(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    return today;
+    // 日曜日を週の始まりとする
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay());
+    return startOfWeek;
   });
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [selectedSlotBookings, setSelectedSlotBookings] = useState([]);
+  const [selectedDateTime, setSelectedDateTime] = useState({ date: null, time: null });
 
   const { fetchBookingsByDateRange } = useBookings();
 
@@ -18,15 +24,23 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'
   ];
 
-  // 今日から7日間の日付を生成
+  // 日付をローカルタイムゾーンでYYYY-MM-DD形式に変換
+  const formatDateForComparison = (date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // 指定した週の開始日から7日間の日付を生成（日曜日起算）
   const generateWeekDates = (startDate) => {
     const dates = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
     
     for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
+      const date = new Date(start);
+      date.setDate(start.getDate() + i);
       dates.push(date);
     }
     return dates;
@@ -56,8 +70,10 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const todayWeekStart = new Date(today);
+    todayWeekStart.setDate(today.getDate() - today.getDay());
     
-    if (newWeek >= today) {
+    if (newWeek >= todayWeekStart) {
       setCurrentWeek(newWeek);
     }
   };
@@ -74,10 +90,18 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     const loadBookings = async () => {
       setLoading(true);
       try {
-        const startDate = weekDates[0].toISOString().split('T')[0];
-        const endDate = weekDates[6].toISOString().split('T')[0];
+        const startDate = formatDateForComparison(weekDates[0]);
+        const endDate = formatDateForComparison(weekDates[6]);
+        
+        console.log('AdminCalendarView - 予約データ取得範囲:', { 
+          startDate, 
+          endDate,
+          startDateObj: weekDates[0],
+          endDateObj: weekDates[6]
+        });
         
         const fetchedBookings = await fetchBookingsByDateRange(startDate, endDate);
+        console.log('AdminCalendarView - 取得した予約:', fetchedBookings);
         setBookings(fetchedBookings);
       } catch (error) {
         console.error('予約データの取得に失敗しました:', error);
@@ -91,17 +115,32 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     }
   }, [currentWeek, fetchBookingsByDateRange]);
 
-  // 特定の日時の予約を取得
-  const getBookingForSlot = (date, time) => {
-    const dateStr = date.toISOString().split('T')[0];
-    return bookings.find(booking => 
+  // 特定の日時の予約を全て取得（複数予約対応）
+  const getBookingsForSlot = (date, time) => {
+    const dateStr = formatDateForComparison(date);
+    return bookings.filter(booking => 
       booking.date === dateStr && booking.time === time
     );
   };
 
   // 時間スロットのクリックハンドラ
   const handleTimeSlotClick = (date, time) => {
-    onDateTimeSelect?.(date, time);
+    const slotBookings = getBookingsForSlot(date, time);
+    
+    if (slotBookings.length > 0) {
+      // 予約がある場合は詳細モーダルを表示
+      setSelectedSlotBookings(slotBookings);
+      setSelectedDateTime({ date, time });
+      setShowBookingModal(true);
+    } else {
+      // 予約がない場合は通常の処理
+      onDateTimeSelect?.(date, time);
+    }
+  };
+
+  // 日付フォーマット
+  const formatDisplayDate = (date) => {
+    return `${date.getMonth() + 1}月${date.getDate()}日（${getDayName(date)}）`;
   };
 
   return (
@@ -114,8 +153,10 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
             (() => {
               const today = new Date();
               today.setHours(0, 0, 0, 0);
+              const todayWeekStart = new Date(today);
+              todayWeekStart.setDate(today.getDate() - today.getDay());
               
-              return currentWeek <= today 
+              return currentWeek < todayWeekStart
                 ? 'opacity-50 cursor-not-allowed' 
                 : 'hover:bg-green-600';
             })()
@@ -123,8 +164,10 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
           disabled={(() => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
+            const todayWeekStart = new Date(today);
+            todayWeekStart.setDate(today.getDate() - today.getDay());
             
-            return currentWeek <= today;
+            return currentWeek < todayWeekStart;
           })()}
         >
           <ChevronLeftIcon className="w-5 h-5" />
@@ -179,21 +222,34 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
                 {time}
               </div>
               {weekDates.map((date, dateIndex) => {
-                const booking = getBookingForSlot(date, time);
+                const slotBookings = getBookingsForSlot(date, time);
                 
                 return (
                   <button
                     key={`${dateIndex}-${timeIndex}`}
                     onClick={() => handleTimeSlotClick(date, time)}
                     className={`p-2 border-r border-gray-200 last:border-r-0 min-h-[48px] flex items-center justify-center text-xs ${
-                      booking 
-                        ? 'bg-blue-100 hover:bg-blue-200 text-blue-800' 
+                      slotBookings.length > 0
+                        ? 'bg-blue-100 hover:bg-blue-200 text-blue-800 cursor-pointer' 
                         : 'hover:bg-gray-50'
                     }`}
                   >
-                    {booking ? (
-                      <div className="text-center">
-                        <div className="font-medium">{booking.customerName}</div>
+                    {slotBookings.length > 0 ? (
+                      <div className="text-center w-full">
+                        {slotBookings.length === 1 ? (
+                          <div className="font-medium">{slotBookings[0].customerName}</div>
+                        ) : (
+                          <div>
+                            <div className="font-medium text-[10px]">
+                              {slotBookings[0].customerName}
+                            </div>
+                            {slotBookings.length > 1 && (
+                              <div className="text-[10px] mt-1">
+                                +{slotBookings.length - 1}件
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="w-6 h-6 rounded-full border-2 border-gray-300"></div>
@@ -211,11 +267,14 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
         <div className="flex flex-wrap gap-4 text-xs">
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded"></div>
-            <span className="text-gray-600">予約済み</span>
+            <span className="text-gray-600">予約済み（クリックで詳細表示）</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-white border-2 border-gray-300 rounded-full"></div>
             <span className="text-gray-600">空き</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-gray-600">複数予約の場合「+件数」で表示</div>
           </div>
         </div>
       </div>
@@ -223,6 +282,62 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
       {loading && (
         <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
           <div className="text-gray-500">読み込み中...</div>
+        </div>
+      )}
+
+      {/* 予約詳細モーダル */}
+      {showBookingModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-medium text-gray-900">
+                予約詳細
+              </h3>
+              <button
+                onClick={() => setShowBookingModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                {selectedDateTime.date && formatDisplayDate(selectedDateTime.date)} {selectedDateTime.time}
+              </p>
+              <p className="text-sm font-medium text-gray-900">
+                {selectedSlotBookings.length}件の予約
+              </p>
+            </div>
+
+            <div className="space-y-3 max-h-60 overflow-y-auto">
+              {selectedSlotBookings.map((booking, index) => (
+                <div key={booking.id} className="p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="font-medium text-gray-900">{booking.customerName}</p>
+                      <p className="text-sm text-gray-600">{booking.phone}</p>
+                      {booking.email && (
+                        <p className="text-sm text-gray-600">{booking.email}</p>
+                      )}
+                      {booking.notes && (
+                        <p className="text-sm text-gray-600 mt-1">備考: {booking.notes}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowBookingModal(false)}
+                className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

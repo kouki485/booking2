@@ -2,7 +2,7 @@
   "name": "salon-booking-system",
   "version": "0.1.0",
   "private": true,
-  "description": "美容院向け予約管理システム",
+  "description": "予約管理システム",
   "dependencies": {
     "@headlessui/react": "^1.7.14",
     "@heroicons/react": "^2.0.16",

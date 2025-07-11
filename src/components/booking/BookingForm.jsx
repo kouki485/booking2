@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useBookings } from '../../hooks/useBookings';
+import { getBookingCount } from '../../services/bookingService';
+import { isBookableTime } from '../../utils/dateUtils';
 import { 
   ChevronLeftIcon, 
   ChevronRightIcon, 
@@ -19,10 +21,11 @@ const BookingForm = () => {
   const [selectedTime, setSelectedTime] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingResult, setBookingResult] = useState(null);
-  const [bookingStatuses, setBookingStatuses] = useState({});
+  const [bookingCounts, setBookingCounts] = useState({});
   const [showHistory, setShowHistory] = useState(false);
+  const [userBookings, setUserBookings] = useState([]);
 
-  const { addBooking, getBookingStatus: getBookingStatusAPI, loading, error, clearError } = useBookings();
+  const { addBooking, loading, error, clearError } = useBookings();
   
   const { 
     register, 
@@ -31,18 +34,24 @@ const BookingForm = () => {
     reset 
   } = useForm();
 
-  // 週の日付を生成（今日以降のみ）
+  // 週の日付を生成（現在の週の基準日から7日間）
   const generateWeekDates = (startDate) => {
     const dates = [];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const baseDate = new Date(startDate);
+    baseDate.setHours(0, 0, 0, 0);
     
-    // 今日の日付から7日間を生成
+    // 基準日から7日間を生成
     for (let i = 0; i < 7; i++) {
-      const date = new Date(today);
-      date.setDate(today.getDate() + i);
+      const date = new Date(baseDate);
+      date.setDate(baseDate.getDate() + i);
       dates.push(date);
     }
+    
+    console.log('週の日付生成:', {
+      startDate: startDate.toDateString(),
+      dates: dates.map(d => d.toDateString())
+    });
+    
     return dates;
   };
 
@@ -57,32 +66,96 @@ const BookingForm = () => {
   // 時間スロットを生成
   const timeSlots = ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 
-  // 予約状況を取得
+  // 予約数を取得
   useEffect(() => {
-    const loadBookingStatuses = async () => {
-      const statuses = {};
+    const loadBookingCounts = async () => {
+      const counts = {};
       const currentWeekDates = generateWeekDates(currentWeek);
       
-      for (const date of currentWeekDates) {
-        const dateStr = date.toISOString().split('T')[0];
-        statuses[dateStr] = {};
-        
-        for (const time of timeSlots) {
-          try {
-            const status = await getBookingStatusAPI(date, time);
-            statuses[dateStr][time] = status;
-          } catch (error) {
-            console.error('予約状況取得エラー:', error);
-            statuses[dateStr][time] = 'available';
+              for (const date of currentWeekDates) {
+          const dateStr = formatDateForSaving(date);
+          counts[dateStr] = {};
+          
+          for (const time of timeSlots) {
+            try {
+              const count = await getBookingCount(dateStr, time);
+              counts[dateStr][time] = count;
+            } catch (error) {
+              console.error('予約数取得エラー:', error);
+              counts[dateStr][time] = 0;
+            }
           }
         }
-      }
       
-      setBookingStatuses(statuses);
+      setBookingCounts(counts);
     };
 
-    loadBookingStatuses();
-  }, [currentWeek, getBookingStatusAPI]); // eslint-disable-line react-hooks/exhaustive-deps
+    loadBookingCounts();
+  }, [currentWeek]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 残り枠数を取得
+  const getRemainingSlots = (date, time) => {
+    const dateStr = formatDateForSaving(date);
+    const count = bookingCounts[dateStr]?.[time] || 0;
+    return Math.max(0, 3 - count); // 最大3枠
+  };
+
+  // 枠数に応じたアイコンとスタイルを取得
+  const getSlotDisplay = (date, time) => {
+    const remaining = getRemainingSlots(date, time);
+    const isNotBookable = !isBookableTime(date, time);
+    const isSelected = selectedDate && selectedTime && 
+                     selectedDate.toDateString() === date.toDateString() && 
+                     selectedTime === time;
+
+    if (isNotBookable) {
+      return {
+        icon: <XMarkIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />,
+        bgColor: 'bg-gray-100',
+        disabled: true
+      };
+    }
+
+    if (isSelected) {
+      return {
+        icon: <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>,
+        bgColor: 'bg-green-500',
+        disabled: false
+      };
+    }
+
+    switch (remaining) {
+      case 0:
+        return {
+          icon: <XMarkIcon className="w-3 h-3 sm:w-4 sm:h-4 text-red-600" />,
+          bgColor: 'bg-red-100',
+          disabled: true
+        };
+      case 1:
+        return {
+          icon: (
+            <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[6px] border-b-yellow-600">
+            </div>
+          ),
+          bgColor: 'bg-yellow-100 hover:bg-yellow-200',
+          disabled: false
+        };
+      case 2:
+      case 3:
+      default:
+        return {
+          icon: (
+            <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full border-2 flex items-center justify-center ${
+              isSelected ? 'bg-white border-white' : 'border-green-500'
+            }`}>
+              {isSelected && <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>}
+            </div>
+          ),
+          bgColor: 'bg-green-50 hover:bg-green-100',
+          disabled: false
+        };
+    }
+  };
 
   // 週の表示テキストを生成
   const getWeekText = (dates) => {
@@ -100,15 +173,15 @@ const BookingForm = () => {
 
   // 前の週へ移動
   const goToPreviousWeek = () => {
-    const newWeek = new Date(currentWeek);
-    newWeek.setDate(currentWeek.getDate() - 7);
-    
-    // 今日より前には戻れないように制限
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    if (newWeek >= today) {
-      setCurrentWeek(newWeek);
+    if (currentWeek > today) {
+      const newWeek = new Date(currentWeek);
+      newWeek.setDate(currentWeek.getDate() - 7);
+      if (newWeek >= today) {
+        setCurrentWeek(newWeek);
+      }
     }
   };
 
@@ -119,8 +192,15 @@ const BookingForm = () => {
     setCurrentWeek(newWeek);
   };
 
-  // 日時選択ハンドラ
+  // 時間スロットクリックハンドラ
   const handleTimeSlotClick = (date, time) => {
+    const remaining = getRemainingSlots(date, time);
+    const isNotBookable = !isBookableTime(date, time);
+    
+    if (isNotBookable || remaining === 0) {
+      return; // 予約不可または満席の場合は何もしない
+    }
+
     setSelectedDate(date);
     setSelectedTime(time);
   };
@@ -139,27 +219,49 @@ const BookingForm = () => {
     }
   };
 
+  // 日付をローカルタイムゾーンでYYYY-MM-DD形式に変換
+  const formatDateForSaving = (date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // フォーム送信
   const onSubmit = async (data) => {
     if (!selectedDate || !selectedTime) return;
 
     setIsSubmitting(true);
     
+    // ローカルタイムゾーンで日付を保存
     const bookingData = {
-      date: selectedDate.toISOString().split('T')[0],
+      date: formatDateForSaving(selectedDate),
       time: selectedTime,
       customerName: data.customerName.trim()
     };
+
+    console.log('予約データ保存:', {
+      selectedDate: selectedDate,
+      selectedDateString: selectedDate.toDateString(),
+      selectedDateISO: selectedDate.toISOString(),
+      formattedDate: bookingData.date,
+      time: bookingData.time
+    });
 
     try {
       const result = await addBooking(bookingData);
       
       if (result.success) {
-        setBookingResult({
+        const successResult = {
           success: true,
           bookingId: result.id,
           ...bookingData
-        });
+        };
+        setBookingResult(successResult);
+        
+        // 予約履歴に保存
+        saveBookingToHistory(successResult);
+        
         setStep(4);
       } else {
         setBookingResult({
@@ -187,8 +289,49 @@ const BookingForm = () => {
     clearError();
   };
 
+  // ローカルストレージから予約履歴を取得
+  const loadUserBookings = () => {
+    try {
+      const savedBookings = localStorage.getItem('userBookings');
+      if (savedBookings) {
+        const bookings = JSON.parse(savedBookings);
+        // 現在日時以降の予約のみ表示
+        const now = new Date();
+        const futureBookings = bookings.filter(booking => {
+          const bookingDateTime = new Date(`${booking.date}T${booking.time}:00`);
+          return bookingDateTime >= now;
+        });
+        setUserBookings(futureBookings);
+      }
+    } catch (error) {
+      console.error('予約履歴の読み込みに失敗しました:', error);
+      setUserBookings([]);
+    }
+  };
+
+  // 予約をローカルストレージに保存
+  const saveBookingToHistory = (bookingData) => {
+    try {
+      const savedBookings = localStorage.getItem('userBookings');
+      const bookings = savedBookings ? JSON.parse(savedBookings) : [];
+      
+      const newBooking = {
+        ...bookingData,
+        id: bookingData.bookingId || Date.now().toString(),
+        createdAt: new Date().toISOString()
+      };
+      
+      bookings.push(newBooking);
+      localStorage.setItem('userBookings', JSON.stringify(bookings));
+      loadUserBookings(); // 履歴を再読み込み
+    } catch (error) {
+      console.error('予約履歴の保存に失敗しました:', error);
+    }
+  };
+
   // 予約履歴を表示
   const handleShowHistory = () => {
+    loadUserBookings();
     setShowHistory(true);
   };
 
@@ -200,7 +343,7 @@ const BookingForm = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-3">
         <div className="flex items-center justify-center">
@@ -226,7 +369,16 @@ const BookingForm = () => {
       {/* ステップインジケーター */}
       <div className="bg-white px-3 sm:px-4 py-4 sm:py-6">
         <div className="flex items-center justify-center mb-4">
-          <div className="flex items-center space-x-3 sm:space-x-6">
+          <div className="relative max-w-sm mx-auto w-full">
+            {/* 進行線の背景 */}
+            <div className="absolute top-3 sm:top-4 left-0 right-0 h-0.5 bg-gray-200"></div>
+            {/* 進行線（アクティブ部分） */}
+            <div 
+              className="absolute top-3 sm:top-4 left-0 h-0.5 bg-green-500 transition-all duration-300"
+              style={{ width: `${((step - 1) / 3) * 100}%` }}
+            ></div>
+            
+            <div className="grid grid-cols-4 gap-4 sm:gap-8 relative z-10">
             <div className="flex flex-col items-center">
               <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center ${
                 step >= 1 ? 'bg-green-500' : 'bg-gray-300'
@@ -278,12 +430,13 @@ const BookingForm = () => {
                 完了
               </span>
             </div>
+            </div>
           </div>
         </div>
       </div>
 
       {/* メインコンテンツ */}
-      <div className="px-3 sm:px-4 pb-20">
+      <div className="px-3 sm:px-4 pb-40">
         {/* ステップ1: 日程選択 */}
         {step === 1 && (
           <div className="space-y-4">
@@ -358,36 +511,48 @@ const BookingForm = () => {
                   </div>
                   {weekDates.map((date, dateIndex) => {
                     const dateStr = date.toISOString().split('T')[0];
-                    const status = bookingStatuses[dateStr]?.[time] || 'available';
-                    const isSelected = selectedDate && selectedTime && 
-                                     selectedDate.toDateString() === date.toDateString() && 
-                                     selectedTime === time;
+                    const remaining = getRemainingSlots(date, time);
+                    const isNotBookable = !isBookableTime(date, time);
+                    const slotDisplay = getSlotDisplay(date, time);
                     
                     return (
                       <button
                         key={`${dateIndex}-${timeIndex}`}
                         onClick={() => handleTimeSlotClick(date, time)}
                         className={`p-1 sm:p-2 border-r border-gray-200 last:border-r-0 flex items-center justify-center flex-1 min-w-[50px] sm:min-w-[60px] min-h-[40px] sm:min-h-[48px] ${
-                          isSelected ? 'bg-green-500' : 'hover:bg-gray-50 active:bg-gray-100'
-                        }`}
-                        disabled={status === 'unavailable' || status === 'full'}
+                          slotDisplay.disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 active:bg-gray-100'
+                        } ${slotDisplay.bgColor}`}
+                        disabled={slotDisplay.disabled}
                       >
-                        {status === 'available' || status === 'partial' ? (
-                          <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full border-2 flex items-center justify-center ${
-                            isSelected ? 'bg-white border-white' : 'border-green-500'
-                          }`}>
-                            {isSelected && <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>}
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 sm:w-7 sm:h-7 flex items-center justify-center">
-                            <XMarkIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />
-                          </div>
-                        )}
+                        {slotDisplay.icon}
                       </button>
                     );
                   })}
                 </div>
               ))}
+            </div>
+
+            {/* 凡例 */}
+            <div className="p-3 sm:p-4 bg-gray-50 border-t border-gray-200">
+              <div className="text-xs text-gray-600 mb-2">枠数表示:</div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-4 h-4 rounded-full border-2 border-green-500 bg-green-50"></div>
+                  <span className="text-gray-600">空き（2-3枠）</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-b-[5px] border-b-yellow-600"></div>
+                  <span className="text-gray-600 ml-1">残り1枠</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <XMarkIcon className="w-4 h-4 text-red-600" />
+                  <span className="text-gray-600">満席</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <XMarkIcon className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-600">予約不可</span>
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -443,7 +608,7 @@ const BookingForm = () => {
 
         {/* ステップ4: 完了 */}
         {step === 4 && bookingResult && (
-          <div className="space-y-4">
+          <div className="space-y-4 mb-8">
             <div className="bg-white rounded-lg p-6 text-center">
               {bookingResult.success ? (
                 <>
@@ -469,7 +634,6 @@ const BookingForm = () => {
                   </div>
                   <p className="text-gray-600 text-sm mb-4">
                     予約が確定いたしました。<br />
-                    当日は時間に余裕を持ってお越しください。
                   </p>
                 </>
               ) : (
@@ -489,7 +653,7 @@ const BookingForm = () => {
       </div>
 
       {/* 固定ボタン */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 safe-area-inset-bottom">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg safe-area-inset-bottom">
         {step === 1 && (
           <button
             onClick={goToNextStep}
@@ -548,17 +712,56 @@ const BookingForm = () => {
               </div>
             </div>
             <div className="p-4">
-              <div className="text-center py-8">
-                <div className="text-gray-400 mb-2">
-                  <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
+              {userBookings.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-gray-400 mb-2">
+                    <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-500 text-sm">
+                    予約履歴はまだありません。<br />
+                    予約を作成すると、こちらに表示されます。
+                  </p>
                 </div>
-                <p className="text-gray-500 text-sm">
-                  予約履歴はまだありません。<br />
-                  予約を作成すると、こちらに表示されます。
-                </p>
-              </div>
+              ) : (
+                <div className="space-y-3">
+                  {userBookings.map((booking, index) => (
+                    <div key={booking.id || index} className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center text-sm font-medium text-gray-900 mb-1">
+                            <svg className="w-4 h-4 mr-1 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                            {new Date(booking.date).toLocaleDateString('ja-JP', {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              weekday: 'short'
+                            })}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600 mb-1">
+                            <svg className="w-4 h-4 mr-1 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {booking.time}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <svg className="w-4 h-4 mr-1 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            {booking.customerName}
+                          </div>
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          予約ID: {booking.id?.substring(0, 8)}...
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

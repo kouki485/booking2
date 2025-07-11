@@ -7,7 +7,7 @@ import {
   Cog6ToothIcon
 } from '@heroicons/react/24/outline';
 
-const Layout = ({ children, showAdminLink = false }) => {
+const Layout = ({ children }) => {
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -34,16 +34,6 @@ const Layout = ({ children, showAdminLink = false }) => {
 
             {/* ナビゲーション */}
             <div className="flex items-center space-x-4">
-              {/* 管理者ページへのリンク（公開ページから） */}
-              {showAdminLink && !isAuthenticated && (
-                <Link
-                  to="/admin/login"
-                  className="inline-flex items-center px-3 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200"
-                >
-                  <Cog6ToothIcon className="w-4 h-4 mr-2" />
-                  管理者ログイン
-                </Link>
-              )}
 
               {/* 認証済みユーザー情報 */}
               {isAuthenticated && (
@@ -85,14 +75,14 @@ const Layout = ({ children, showAdminLink = false }) => {
       </main>
 
       {/* フッター */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
+      <footer className="bg-white border-t border-gray-200 mt-8">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="text-center text-sm text-gray-500">
             <p>
-              © 2025 予約システム. All rights reserved.
+              2025 公式アイデア予約表
             </p>
             <p className="mt-1">
-              予約に関するお問い合わせは店舗まで直接お電話ください。
+              その他に関するお問い合わせは公式ラインまでご連絡ください。
             </p>
           </div>
         </div>

@@ -58,7 +58,7 @@ function App() {
           <Route 
             path="/" 
             element={
-              <Layout showAdminLink={true}>
+              <Layout>
                 <BookingForm />
               </Layout>
             } 
@@ -81,7 +81,7 @@ function App() {
             path="/admin" 
             element={
               isAuthenticated && isAdminUser ? (
-                <Layout showAdminLink={false}>
+                <Layout>
                   <AdminDashboard />
                 </Layout>
               ) : (

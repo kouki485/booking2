@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Tab } from '@headlessui/react';
 import { 
   CalendarDaysIcon, 
@@ -7,6 +8,7 @@ import {
 } from '@heroicons/react/24/outline';
 import AdminCalendarView from './AdminCalendarView';
 import { useBookings } from '../../hooks/useBookings';
+import { useAuth } from '../../hooks/useAuth';
 import { formatDate, getCurrentDate } from '../../hooks/useBookings';
 
 function classNames(...classes) {
@@ -19,6 +21,9 @@ const AdminDashboard = () => {
   const [weekBookings, setWeekBookings] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
   
+  const { isAuthenticated, loading: authLoading } = useAuth();
+  const navigate = useNavigate();
+  
   const { 
     fetchBookingsByDateRange, 
     deleteExistingBooking, 
@@ -26,6 +31,22 @@ const AdminDashboard = () => {
     error,
     clearError 
   } = useBookings();
+
+  // 日付をローカルタイムゾーンでYYYY-MM-DD形式に変換
+  const formatDateForQuery = (date) => {
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  // 認証チェック
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      console.log('認証されていないため、ログインページにリダイレクト');
+      navigate('/admin/login', { replace: true });
+    }
+  }, [isAuthenticated, authLoading, navigate]);
 
   // タブメニュー
   const tabs = [
@@ -36,26 +57,76 @@ const AdminDashboard = () => {
   // 現在の週の予約を取得
   useEffect(() => {
     const loadWeekBookings = async () => {
-      const today = new Date(selectedDate);
+      if (!isAuthenticated || authLoading) {
+        console.log('認証待機中またはログインが必要');
+        return;
+      }
+      
+      console.log('週の予約データ取得開始');
+      
+      // 常に今日を基準にした週を取得（日曜日起算）
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
       
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       
-      const startDate = startOfWeek.toISOString().split('T')[0];
-      const endDate = endOfWeek.toISOString().split('T')[0];
+      const startDate = formatDateForQuery(startOfWeek);
+      const endDate = formatDateForQuery(endOfWeek);
+      
+      console.log('=== 週の範囲計算デバッグ ===');
+      console.log('今日の日付オブジェクト:', today);
+      console.log('今日の曜日番号:', today.getDay(), '(0=日曜日)');
+      console.log('週の開始日(日曜日):', startOfWeek);
+      console.log('週の終了日(土曜日):', endOfWeek);
+      console.log('取得範囲:', { 
+        startDate, 
+        endDate, 
+        today: today.toISOString().split('T')[0],
+        todayDayOfWeek: today.getDay(),
+        startOfWeekDate: formatDateForQuery(startOfWeek),
+        endOfWeekDate: formatDateForQuery(endOfWeek)
+      });
+      console.log('=== 週の範囲計算デバッグ終了 ===');
       
       try {
         const bookings = await fetchBookingsByDateRange(startDate, endDate);
-        setWeekBookings(bookings);
+        console.log('取得成功:', bookings.length, '件の予約');
+        console.log('予約詳細:', bookings);
+        
+        // データの整合性チェック
+        const validBookings = bookings.filter(booking => {
+          const hasValidDate = booking.date && typeof booking.date === 'string';
+          const hasValidTime = booking.time && typeof booking.time === 'string';
+          const hasValidName = booking.customerName && typeof booking.customerName === 'string';
+          
+          if (!hasValidDate || !hasValidTime || !hasValidName) {
+            console.warn('無効な予約データを検出:', booking);
+            return false;
+          }
+          
+          return true;
+        });
+        
+        console.log('有効な予約データ:', validBookings.length, '件');
+        setWeekBookings(validBookings);
+        
+        // 今日の予約を即座にチェック
+        const todayStr = formatDateForQuery(today);
+        const todayBookingsImmediate = validBookings.filter(booking => booking.date === todayStr);
+        console.log('即座チェック - 今日の予約:', todayBookingsImmediate);
+        
       } catch (err) {
         console.error('予約取得エラー:', err);
+        setWeekBookings([]);
       }
     };
 
+    // 認証状態が確定した時にデータ取得
     loadWeekBookings();
-  }, [selectedDate, fetchBookingsByDateRange]);
+  }, [isAuthenticated, authLoading, fetchBookingsByDateRange]);
 
   // 日時選択ハンドラ（管理者モード）
   const handleDateTimeSelect = (date, time) => {
@@ -73,16 +144,17 @@ const AdminDashboard = () => {
     try {
       await deleteExistingBooking(bookingId);
       
-      // 予約一覧を再読み込み
-      const today = new Date(selectedDate);
+      // 予約一覧を再読み込み（日曜日起算）
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - today.getDay());
       
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
       
-      const startDate = startOfWeek.toISOString().split('T')[0];
-      const endDate = endOfWeek.toISOString().split('T')[0];
+      const startDate = formatDateForQuery(startOfWeek);
+      const endDate = formatDateForQuery(endOfWeek);
       
       const updatedBookings = await fetchBookingsByDateRange(startDate, endDate);
       setWeekBookings(updatedBookings);
@@ -93,12 +165,65 @@ const AdminDashboard = () => {
     }
   };
 
+  // 日付を正規化する関数
+  const normalizeDate = (dateInput) => {
+    if (!dateInput) return null;
+    
+    if (typeof dateInput === 'string') {
+      // 既にYYYY-MM-DD形式の場合はそのまま返す
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
+        return dateInput;
+      }
+    }
+    
+    // Dateオブジェクトまたは他の形式の場合、YYYY-MM-DD形式に変換
+    try {
+      const date = new Date(dateInput);
+      return date.toISOString().split('T')[0];
+    } catch (error) {
+      console.error('日付の正規化に失敗:', dateInput, error);
+      return null;
+    }
+  };
+
   // 予約統計情報
   const getBookingStats = () => {
     const today = getCurrentDate();
+    const todayNormalized = formatDateForQuery(new Date());
     
-    const todayBookings = weekBookings.filter(booking => booking.date === today);
+    console.log('=== 予約統計デバッグ情報 ===');
+    console.log('getCurrentDate()結果:', today);
+    console.log('正規化された今日の日付:', todayNormalized);
+    console.log('週の予約データ件数:', weekBookings.length);
+    
+    if (weekBookings.length > 0) {
+      console.log('週の予約データ詳細:');
+      weekBookings.forEach((booking, index) => {
+        console.log(`  ${index + 1}. ID: ${booking.id}, 日付: "${booking.date}", 時間: "${booking.time}", 名前: "${booking.customerName}"`);
+      });
+    }
+    
+    // 今日の予約をフィルタリング
+    const todayBookings = weekBookings.filter(booking => {
+      if (!booking.date) {
+        console.log('予約に日付がありません:', booking);
+        return false;
+      }
+      
+      const bookingDateNormalized = booking.date; // 既にYYYY-MM-DD形式で保存されている
+      const isToday = bookingDateNormalized === today || bookingDateNormalized === todayNormalized;
+      
+      console.log(`予約${booking.id}: 予約日="${booking.date}" -> 正規化="${bookingDateNormalized}", 今日判定=${isToday}`);
+      
+      return isToday;
+    });
+    
     const weekTotal = weekBookings.length;
+    
+    console.log('最終的な今日の予約:', todayBookings);
+    console.log('今日の予約件数:', todayBookings.length);
+    console.log('今週の予約件数:', weekTotal);
+    console.log('=== デバッグ情報終了 ===');
     
     return {
       today: todayBookings.length,
@@ -107,6 +232,22 @@ const AdminDashboard = () => {
   };
 
   const stats = getBookingStats();
+
+  // 認証確認中はローディング表示
+  if (authLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-gray-500">認証確認中...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // 認証されていない場合は何も表示しない（リダイレクト処理中）
+  if (!isAuthenticated) {
+    return null;
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

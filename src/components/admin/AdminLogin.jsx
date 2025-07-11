@@ -24,22 +24,31 @@ const AdminLogin = () => {
     setIsLoading(true);
     setLoginError('');
 
-    console.log('ログイン試行:', data);
-    console.log('期待値 - ID:', ADMIN_LOGIN_ID, 'パスワード:', ADMIN_PASSWORD);
-
-    // 固定のログインIDとパスワードをチェック
-    if (data.loginId === ADMIN_LOGIN_ID && data.password === ADMIN_PASSWORD) {
-      // 認証成功
-      console.log('認証成功');
-      localStorage.setItem('isAdminLoggedIn', 'true');
-      setIsAuthenticated(true);
-    } else {
-      // 認証失敗
-      console.log('認証失敗');
-      setLoginError('ログインIDまたはパスワードが間違っています');
+    try {
+      // 固定のログインIDとパスワードをチェック
+      if (data.loginId === ADMIN_LOGIN_ID && data.password === ADMIN_PASSWORD) {
+        // 認証成功
+        console.log('認証成功 - ローカルストレージ保存');
+        localStorage.setItem('isAdminLoggedIn', 'true');
+        
+        // 認証状態を更新
+        setIsAuthenticated(true);
+        
+        console.log('管理画面に強制リダイレクト実行');
+        // window.location.hrefを使用して確実にリダイレクト
+        window.location.href = '/admin';
+        
+      } else {
+        // 認証失敗
+        console.log('認証失敗');
+        setLoginError('ログインIDまたはパスワードが間違っています');
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error('ログインエラー:', error);
+      setLoginError('ログイン処理中にエラーが発生しました');
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   return (

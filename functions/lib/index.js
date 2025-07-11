@@ -1,49 +1,48 @@
-import * as functions from 'firebase-functions';
-import * as admin from 'firebase-admin';
-import * as nodemailer from 'nodemailer';
-
+"use strict";
+var _a, _b;
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.testEmailConfiguration = exports.sendBookingCancelNotification = exports.sendBookingNotification = void 0;
+const functions = require("firebase-functions");
+const admin = require("firebase-admin");
+const nodemailer = require("nodemailer");
 // Firebase Admin初期化
 admin.initializeApp();
-
 // Gmail SMTP設定
 const gmailTransporter = nodemailer.createTransporter({
-  service: 'gmail',
-  auth: {
-    user: functions.config().email?.user || 'mwd3145@gmail.com',
-    pass: functions.config().email?.password || 'oajy gyub zxvn imkr'
-  }
+    service: 'gmail',
+    auth: {
+        user: ((_a = functions.config().email) === null || _a === void 0 ? void 0 : _a.user) || 'mwd3145@gmail.com',
+        pass: ((_b = functions.config().email) === null || _b === void 0 ? void 0 : _b.password) || 'oajy gyub zxvn imkr'
+    }
 });
-
 // 新規予約作成時のメール通知
-export const sendBookingNotification = functions.firestore
-  .document('bookings/{bookingId}')
-  .onCreate(async (snap, context) => {
+exports.sendBookingNotification = functions.firestore
+    .document('bookings/{bookingId}')
+    .onCreate(async (snap, context) => {
+    var _a, _b;
     try {
-      const booking = snap.data();
-      const bookingId = context.params.bookingId;
-
-      // 日本語の日付フォーマット
-      const bookingDate = new Date(booking.date + 'T00:00:00+09:00');
-      const dateStr = bookingDate.toLocaleDateString('ja-JP', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'short'
-      });
-
-      // 時間範囲の計算
-      const [hours, minutes] = booking.time.split(':').map(Number);
-      const endMinutes = minutes + 30;
-      const endHours = endMinutes >= 60 ? hours + 1 : hours;
-      const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes;
-      const endTime = `${endHours.toString().padStart(2, '0')}:${adjustedEndMinutes.toString().padStart(2, '0')}`;
-      const timeRange = `${booking.time}-${endTime}`;
-
-      const mailOptions = {
-        from: functions.config().email?.user || 'mwd3145@gmail.com',
-        to: functions.config().email?.notify_to || 'fruit3146@yahoo.co.jp',
-        subject: '【予約システム】新規予約通知',
-        html: `
+        const booking = snap.data();
+        const bookingId = context.params.bookingId;
+        // 日本語の日付フォーマット
+        const bookingDate = new Date(booking.date + 'T00:00:00+09:00');
+        const dateStr = bookingDate.toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'short'
+        });
+        // 時間範囲の計算
+        const [hours, minutes] = booking.time.split(':').map(Number);
+        const endMinutes = minutes + 30;
+        const endHours = endMinutes >= 60 ? hours + 1 : hours;
+        const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes;
+        const endTime = `${endHours.toString().padStart(2, '0')}:${adjustedEndMinutes.toString().padStart(2, '0')}`;
+        const timeRange = `${booking.time}-${endTime}`;
+        const mailOptions = {
+            from: ((_a = functions.config().email) === null || _a === void 0 ? void 0 : _a.user) || 'mwd3145@gmail.com',
+            to: ((_b = functions.config().email) === null || _b === void 0 ? void 0 : _b.notify_to) || 'fruit3146@yahoo.co.jp',
+            subject: '【予約システム】新規予約通知',
+            html: `
           <!DOCTYPE html>
           <html>
           <head>
@@ -130,59 +129,52 @@ export const sendBookingNotification = functions.firestore
           </body>
           </html>
         `
-      };
-
-      const info = await gmailTransporter.sendMail(mailOptions);
-      
-      functions.logger.info('予約通知メール送信成功', {
-        bookingId,
-        customerName: booking.customerName,
-        messageId: info.messageId
-      });
-      
-      return { success: true, messageId: info.messageId };
-      
-    } catch (error) {
-      functions.logger.error('予約通知メール送信エラー', {
-        bookingId: context.params.bookingId,
-        error: error.message
-      });
-      
-      // エラーが発生してもFirestore操作は成功させる
-      return { success: false, error: error.message };
+        };
+        const info = await gmailTransporter.sendMail(mailOptions);
+        functions.logger.info('予約通知メール送信成功', {
+            bookingId,
+            customerName: booking.customerName,
+            messageId: info.messageId
+        });
+        return { success: true, messageId: info.messageId };
     }
-  });
-
+    catch (error) {
+        functions.logger.error('予約通知メール送信エラー', {
+            bookingId: context.params.bookingId,
+            error: error.message
+        });
+        // エラーが発生してもFirestore操作は成功させる
+        return { success: false, error: error.message };
+    }
+});
 // 予約削除時のメール通知
-export const sendBookingCancelNotification = functions.firestore
-  .document('bookings/{bookingId}')
-  .onDelete(async (snap, context) => {
+exports.sendBookingCancelNotification = functions.firestore
+    .document('bookings/{bookingId}')
+    .onDelete(async (snap, context) => {
+    var _a, _b;
     try {
-      const booking = snap.data();
-      const bookingId = context.params.bookingId;
-
-      // 日本語の日付フォーマット
-      const bookingDate = new Date(booking.date + 'T00:00:00+09:00');
-      const dateStr = bookingDate.toLocaleDateString('ja-JP', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        weekday: 'short'
-      });
-
-      // 時間範囲の計算
-      const [hours, minutes] = booking.time.split(':').map(Number);
-      const endMinutes = minutes + 30;
-      const endHours = endMinutes >= 60 ? hours + 1 : hours;
-      const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes;
-      const endTime = `${endHours.toString().padStart(2, '0')}:${adjustedEndMinutes.toString().padStart(2, '0')}`;
-      const timeRange = `${booking.time}-${endTime}`;
-
-      const mailOptions = {
-        from: functions.config().email?.user || 'mwd3145@gmail.com',
-        to: functions.config().email?.notify_to || 'fruit3146@yahoo.co.jp',
-        subject: '【予約システム】予約キャンセル通知',
-        html: `
+        const booking = snap.data();
+        const bookingId = context.params.bookingId;
+        // 日本語の日付フォーマット
+        const bookingDate = new Date(booking.date + 'T00:00:00+09:00');
+        const dateStr = bookingDate.toLocaleDateString('ja-JP', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'short'
+        });
+        // 時間範囲の計算
+        const [hours, minutes] = booking.time.split(':').map(Number);
+        const endMinutes = minutes + 30;
+        const endHours = endMinutes >= 60 ? hours + 1 : hours;
+        const adjustedEndMinutes = endMinutes >= 60 ? endMinutes - 60 : endMinutes;
+        const endTime = `${endHours.toString().padStart(2, '0')}:${adjustedEndMinutes.toString().padStart(2, '0')}`;
+        const timeRange = `${booking.time}-${endTime}`;
+        const mailOptions = {
+            from: ((_a = functions.config().email) === null || _a === void 0 ? void 0 : _a.user) || 'mwd3145@gmail.com',
+            to: ((_b = functions.config().email) === null || _b === void 0 ? void 0 : _b.notify_to) || 'fruit3146@yahoo.co.jp',
+            subject: '【予約システム】予約キャンセル通知',
+            html: `
           <!DOCTYPE html>
           <html>
           <head>
@@ -260,46 +252,40 @@ export const sendBookingCancelNotification = functions.firestore
           </body>
           </html>
         `
-      };
-
-      const info = await gmailTransporter.sendMail(mailOptions);
-      
-      functions.logger.info('予約キャンセル通知メール送信成功', {
-        bookingId,
-        customerName: booking.customerName,
-        messageId: info.messageId
-      });
-      
-      return { success: true, messageId: info.messageId };
-      
-    } catch (error) {
-      functions.logger.error('予約キャンセル通知メール送信エラー', {
-        bookingId: context.params.bookingId,
-        error: error.message
-      });
-      
-      return { success: false, error: error.message };
+        };
+        const info = await gmailTransporter.sendMail(mailOptions);
+        functions.logger.info('予約キャンセル通知メール送信成功', {
+            bookingId,
+            customerName: booking.customerName,
+            messageId: info.messageId
+        });
+        return { success: true, messageId: info.messageId };
     }
-  });
-
+    catch (error) {
+        functions.logger.error('予約キャンセル通知メール送信エラー', {
+            bookingId: context.params.bookingId,
+            error: error.message
+        });
+        return { success: false, error: error.message };
+    }
+});
 // メール設定テスト用のHTTPS関数
-export const testEmailConfiguration = functions.https.onRequest(async (req, res) => {
-  // CORS設定
-  res.set('Access-Control-Allow-Origin', '*');
-  res.set('Access-Control-Allow-Methods', 'GET, POST');
-  res.set('Access-Control-Allow-Headers', 'Content-Type');
-  
-  if (req.method === 'OPTIONS') {
-    res.status(204).send('');
-    return;
-  }
-
-  try {
-    const testMailOptions = {
-      from: functions.config().email?.user || 'mwd3145@gmail.com',
-      to: functions.config().email?.notify_to || 'fruit3146@yahoo.co.jp',
-              subject: '【予約システム】メール設定テスト',
-      html: `
+exports.testEmailConfiguration = functions.https.onRequest(async (req, res) => {
+    var _a, _b;
+    // CORS設定
+    res.set('Access-Control-Allow-Origin', '*');
+    res.set('Access-Control-Allow-Methods', 'GET, POST');
+    res.set('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') {
+        res.status(204).send('');
+        return;
+    }
+    try {
+        const testMailOptions = {
+            from: ((_a = functions.config().email) === null || _a === void 0 ? void 0 : _a.user) || 'mwd3145@gmail.com',
+            to: ((_b = functions.config().email) === null || _b === void 0 ? void 0 : _b.notify_to) || 'fruit3146@yahoo.co.jp',
+            subject: '【予約システム】メール設定テスト',
+            html: `
         <div style="font-family: Arial, sans-serif; padding: 20px;">
           <h2 style="color: #28a745;">🧪 メール設定テスト</h2>
           <p>このメールが届いている場合、メール通知機能は正常に動作しています。</p>
@@ -310,24 +296,21 @@ export const testEmailConfiguration = functions.https.onRequest(async (req, res)
           </p>
         </div>
       `
-    };
-
-    const info = await gmailTransporter.sendMail(testMailOptions);
-    
-    functions.logger.info('テストメール送信成功', { messageId: info.messageId });
-    
-    res.status(200).json({
-      success: true,
-      message: 'テストメールを送信しました',
-      messageId: info.messageId
-    });
-    
-  } catch (error) {
-    functions.logger.error('テストメール送信エラー', { error: error.message });
-    
-    res.status(500).json({
-      success: false,
-      error: error.message
-    });
-  }
-}); 
+        };
+        const info = await gmailTransporter.sendMail(testMailOptions);
+        functions.logger.info('テストメール送信成功', { messageId: info.messageId });
+        res.status(200).json({
+            success: true,
+            message: 'テストメールを送信しました',
+            messageId: info.messageId
+        });
+    }
+    catch (error) {
+        functions.logger.error('テストメール送信エラー', { error: error.message });
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
+});
+//# sourceMappingURL=index.js.map
