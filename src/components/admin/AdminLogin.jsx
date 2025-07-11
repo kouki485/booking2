@@ -47,7 +47,7 @@ const AdminLogin = () => {
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="text-center">
           <h2 className="text-3xl font-bold text-gray-900">
-            美容院 管理システム
+            予約管理システム
           </h2>
           <p className="mt-2 text-sm text-gray-600">
             管理者ログイン

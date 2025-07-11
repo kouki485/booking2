@@ -28,7 +28,7 @@ const Layout = ({ children, showAdminLink = false }) => {
                 to="/" 
                 className="text-xl font-bold text-salon-600 hover:text-salon-700"
               >
-                美容院 予約システム
+                予約システム
               </Link>
             </div>
 
@@ -89,7 +89,7 @@ const Layout = ({ children, showAdminLink = false }) => {
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <div className="text-center text-sm text-gray-500">
             <p>
-              © 2025 美容院予約システム. All rights reserved.
+              © 2025 予約システム. All rights reserved.
             </p>
             <p className="mt-1">
               予約に関するお問い合わせは店舗まで直接お電話ください。
