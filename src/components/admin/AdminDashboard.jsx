@@ -2,12 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Tab } from '@headlessui/react';
 import { 
   CalendarDaysIcon, 
-  ClockIcon, 
   UserGroupIcon,
   TrashIcon
 } from '@heroicons/react/24/outline';
-import CalendarView from '../booking/CalendarView';
-import AvailableHours from './BusinessHours';
+import AdminCalendarView from './AdminCalendarView';
 import { useBookings } from '../../hooks/useBookings';
 import { formatDate, getCurrentDate } from '../../hooks/useBookings';
 
@@ -32,8 +30,7 @@ const AdminDashboard = () => {
   // タブメニュー
   const tabs = [
     { name: '予約カレンダー', icon: CalendarDaysIcon },
-    { name: '予約一覧', icon: UserGroupIcon },
-    { name: '対応可能時間設定', icon: ClockIcon }
+    { name: '予約一覧', icon: UserGroupIcon }
   ];
 
   // 現在の週の予約を取得
@@ -117,7 +114,7 @@ const AdminDashboard = () => {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-gray-900">管理ダッシュボード</h1>
         <p className="mt-1 text-sm text-gray-600">
-          予約管理と店舗設定を行えます
+          予約管理を行えます
         </p>
       </div>
 
@@ -208,10 +205,9 @@ const AdminDashboard = () => {
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 予約カレンダー
               </h3>
-              <CalendarView 
+              <AdminCalendarView 
                 onDateTimeSelect={handleDateTimeSelect}
                 selectedDate={selectedDate}
-                isAdminMode={true}
               />
             </div>
           </Tab.Panel>
@@ -286,10 +282,7 @@ const AdminDashboard = () => {
             </div>
           </Tab.Panel>
 
-          {/* 対応可能時間設定 */}
-          <Tab.Panel>
-            <AvailableHours />
-          </Tab.Panel>
+
         </Tab.Panels>
       </Tab.Group>
     </div>

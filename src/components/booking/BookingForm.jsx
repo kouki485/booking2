@@ -20,6 +20,7 @@ const BookingForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bookingResult, setBookingResult] = useState(null);
   const [bookingStatuses, setBookingStatuses] = useState({});
+  const [showHistory, setShowHistory] = useState(false);
 
   const { addBooking, getBookingStatus: getBookingStatusAPI, loading, error, clearError } = useBookings();
   
@@ -186,24 +187,34 @@ const BookingForm = () => {
     clearError();
   };
 
+  // 予約履歴を表示
+  const handleShowHistory = () => {
+    setShowHistory(true);
+  };
+
+  // 予約履歴を閉じる
+  const handleCloseHistory = () => {
+    setShowHistory(false);
+  };
+
 
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ヘッダー */}
       <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-center">
           <h1 className="text-base sm:text-lg font-medium text-gray-900">予約ページ</h1>
-          <button className="p-2">
-            <XMarkIcon className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
-          </button>
         </div>
       </div>
 
       {/* 予約履歴ボタン */}
       <div className="bg-white border-b border-gray-200 px-3 sm:px-4 py-2 sm:py-3">
         <div className="flex justify-end">
-          <button className="flex items-center text-xs sm:text-sm text-gray-600 bg-gray-100 rounded-full px-2 sm:px-3 py-1">
+          <button 
+            className="flex items-center text-xs sm:text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-full px-2 sm:px-3 py-1 transition-colors"
+            onClick={handleShowHistory}
+          >
             <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
             </svg>
@@ -520,6 +531,38 @@ const BookingForm = () => {
           </button>
         )}
       </div>
+
+      {/* 予約履歴モーダル */}
+      {showHistory && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-medium text-gray-900">予約履歴</h3>
+                <button
+                  onClick={handleCloseHistory}
+                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <XMarkIcon className="w-5 h-5 text-gray-400" />
+                </button>
+              </div>
+            </div>
+            <div className="p-4">
+              <div className="text-center py-8">
+                <div className="text-gray-400 mb-2">
+                  <svg className="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <p className="text-gray-500 text-sm">
+                  予約履歴はまだありません。<br />
+                  予約を作成すると、こちらに表示されます。
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

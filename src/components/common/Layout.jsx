@@ -8,14 +8,12 @@ import {
 } from '@heroicons/react/24/outline';
 
 const Layout = ({ children, showAdminLink = false }) => {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
 
-  const handleLogout = async () => {
-    const result = await logout();
-    if (result.success) {
-      navigate('/');
-    }
+  const handleLogout = () => {
+    logout();
+    navigate('/');
   };
 
   return (
@@ -48,12 +46,12 @@ const Layout = ({ children, showAdminLink = false }) => {
               )}
 
               {/* 認証済みユーザー情報 */}
-              {isAuthenticated && user && (
+              {isAuthenticated && (
                 <div className="flex items-center space-x-4">
                   <div className="flex items-center text-sm text-gray-700">
                     <UserIcon className="w-4 h-4 mr-1" />
                     <span className="hidden sm:inline">
-                      {user.email}
+                      管理者
                     </span>
                   </div>
                   
