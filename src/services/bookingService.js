@@ -11,7 +11,7 @@ import {
   getDoc,
   updateDoc
 } from 'firebase/firestore';
-import { db } from './firebase';
+import { db, auth } from './firebase';
 import { validateCustomerName, sanitizeString } from '../utils/validation';
 import { 
   checkRateLimit, 
@@ -38,6 +38,18 @@ export const createBooking = async (bookingData) => {
         clientId 
       });
       throw new Error('予約作成回数の上限に達しました。しばらく時間をおいてから再試行してください。');
+    }
+    
+    // IPアドレス制限チェック（同じIPから2件まで）
+    const ipLimitCheck = await checkIPAddressBookingLimit(clientId, 2);
+    if (ipLimitCheck.isLimitExceeded) {
+      logSecurityEvent('ip_booking_limit_exceeded', { 
+        action: 'create_booking',
+        clientId: ipLimitCheck.clientId,
+        currentCount: ipLimitCheck.currentCount,
+        maxAllowed: ipLimitCheck.maxAllowed
+      });
+      throw new Error(`同じ端末からの予約は${ipLimitCheck.maxAllowed}件までに制限されています。現在${ipLimitCheck.currentCount}件の予約があります。`);
     }
     
     // 異常なアクティビティの検出
@@ -118,7 +130,8 @@ export const createBooking = async (bookingData) => {
       bookingId: docRef.id,
       clientId: clientId.substring(0, 8),
       date: sanitizedData.date,
-      time: sanitizedData.time
+      time: sanitizedData.time,
+      ipBookingCount: ipLimitCheck.currentCount + 1
     });
     
     return {
@@ -147,29 +160,74 @@ export const createBooking = async (bookingData) => {
  */
 export const getBookings = async (filters = {}) => {
   try {
+    console.log('=== getBookings デバッグ開始 ===');
+    console.log('フィルター:', filters);
+    
     let q = collection(db, 'bookings');
     
     // フィルターの適用
     if (filters.date) {
       q = query(q, where('date', '==', filters.date));
+      console.log('日付フィルター適用:', filters.date);
     }
     
     if (filters.status) {
       q = query(q, where('status', '==', filters.status));
+      console.log('ステータスフィルター適用:', filters.status);
     }
     
     // 日付順でソート
     q = query(q, orderBy('date', 'asc'), orderBy('time', 'asc'));
     
     const querySnapshot = await getDocs(q);
+    console.log('Firestoreから取得した件数:', querySnapshot.size);
+    
     const bookings = [];
+    const debugInfo = {
+      totalDocs: querySnapshot.size,
+      validBookings: 0,
+      invalidBookings: 0,
+      sampleData: []
+    };
     
     querySnapshot.forEach((doc) => {
-      bookings.push({
-        id: doc.id,
-        ...doc.data()
-      });
+      const data = doc.data();
+      
+      // デバッグ用: 最初の3件のデータを記録
+      if (debugInfo.sampleData.length < 3) {
+        debugInfo.sampleData.push({
+          id: doc.id,
+          data: data
+        });
+      }
+      
+      // データ検証: 必須フィールドが存在し、有効な値であることを確認
+      if (data && 
+          data.date && 
+          data.time && 
+          data.customerName && 
+          typeof data.date === 'string' &&
+          typeof data.time === 'string' &&
+          typeof data.customerName === 'string') {
+        
+        debugInfo.validBookings++;
+        bookings.push({
+          id: doc.id,
+          ...data
+        });
+      } else {
+        debugInfo.invalidBookings++;
+        console.warn('無効な予約データをスキップしました:', doc.id, data);
+      }
     });
+    
+    console.log('=== getBookings データ処理統計 ===');
+    console.log('合計ドキュメント数:', debugInfo.totalDocs);
+    console.log('有効な予約データ:', debugInfo.validBookings);
+    console.log('無効な予約データ:', debugInfo.invalidBookings);
+    console.log('サンプルデータ:', debugInfo.sampleData);
+    console.log('返却する予約件数:', bookings.length);
+    console.log('=== getBookings デバッグ終了 ===');
     
     return bookings;
   } catch (error) {
@@ -183,9 +241,26 @@ export const getBookings = async (filters = {}) => {
  */
 export const deleteBooking = async (bookingId, adminUser) => {
   try {
+    console.log('=== deleteBooking デバッグ開始 ===');
+    console.log('bookingId:', bookingId);
+    console.log('adminUser:', adminUser);
+    console.log('current auth user:', auth.currentUser);
+    
     if (!adminUser) {
       throw new Error('管理者権限が必要です');
     }
+    
+    // Firebase Auth の現在のユーザーを確認
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error('Firebase認証が必要です。再度ログインしてください。');
+    }
+    
+    console.log('認証済みユーザー:', {
+      uid: currentUser.uid,
+      email: currentUser.email,
+      emailVerified: currentUser.emailVerified
+    });
     
     const clientId = getClientIP();
     
@@ -206,7 +281,12 @@ export const deleteBooking = async (bookingId, adminUser) => {
       throw new Error('無効な予約IDです');
     }
     
+    console.log('Firestore削除操作を実行中...');
+    
+    // Firestoreから予約を削除
     await deleteDoc(doc(db, 'bookings', sanitizedBookingId));
+    
+    console.log('Firestore削除操作完了');
     
     // セキュリティログ
     logSecurityEvent('booking_deleted', {
@@ -215,12 +295,19 @@ export const deleteBooking = async (bookingId, adminUser) => {
       adminEmail: adminUser.email
     });
     
+    console.log('=== deleteBooking デバッグ終了 ===');
     return { success: true };
   } catch (error) {
     console.error('予約削除エラー:', error);
+    console.error('エラーの詳細:', {
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
     
     logSecurityEvent('booking_deletion_error', {
       error: error.message,
+      errorCode: error.code,
       bookingId,
       adminId: adminUser?.uid
     });
@@ -334,6 +421,12 @@ export const getBookingsCountByDateRange = async (startDate, endDate) => {
  */
 export const getBookingCount = async (date, time) => {
   try {
+    // 入力データ検証
+    if (!date || !time || typeof date !== 'string' || typeof time !== 'string') {
+      console.warn('getBookingCount: 無効なパラメータ', { date, time });
+      return 0;
+    }
+    
     const q = query(
       collection(db, 'bookings'),
       where('date', '==', date),
@@ -456,30 +549,93 @@ export const updateBooking = async (bookingId, updates) => {
  */
 export const getBookingsByDateRange = async (startDate, endDate) => {
   try {
-    // インデックスの問題を回避するため、シンプルなクエリを使用
+    // 入力データ検証
+    if (!startDate || !endDate || typeof startDate !== 'string' || typeof endDate !== 'string') {
+      console.warn('getBookingsByDateRange: 無効なパラメータ', { startDate, endDate });
+      return [];
+    }
+    
+    console.log('=== getBookingsByDateRange デバッグ開始 ===');
+    console.log('検索範囲:', { startDate, endDate });
+    
+    // シンプルなクエリを使用してFirestoreの制限を回避
     const q = query(
       collection(db, 'bookings'),
       where('date', '>=', startDate),
-      where('date', '<=', endDate),
-      orderBy('date', 'asc')
+      where('date', '<=', endDate)
     );
     
     const querySnapshot = await getDocs(q);
-    const bookings = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    console.log('Firestoreから取得した生データ件数:', querySnapshot.size);
     
-    // クライアントサイドで時間順にソート
-    return bookings.sort((a, b) => {
+    const bookings = [];
+    const debugInfo = {
+      totalDocs: querySnapshot.size,
+      validBookings: 0,
+      invalidBookings: 0,
+      confirmedBookings: 0,
+      sampleData: []
+    };
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      
+      // デバッグ用: 最初の5件のデータを記録
+      if (debugInfo.sampleData.length < 5) {
+        debugInfo.sampleData.push({
+          id: doc.id,
+          data: data
+        });
+      }
+      
+      // データ検証と絞り込み: 必須フィールドが存在し、有効な値であることを確認
+      if (data && 
+          data.date && 
+          data.time && 
+          data.customerName && 
+          typeof data.date === 'string' &&
+          typeof data.time === 'string' &&
+          typeof data.customerName === 'string') {
+        
+        debugInfo.validBookings++;
+        
+        // クライアントサイドでstatusフィルタリング
+        if (data.status === 'confirmed' || !data.status) {
+          debugInfo.confirmedBookings++;
+          bookings.push({
+            id: doc.id,
+            ...data
+          });
+        }
+      } else {
+        debugInfo.invalidBookings++;
+        console.warn('無効な予約データをスキップしました:', doc.id, data);
+      }
+    });
+    
+    console.log('=== データ処理統計 ===');
+    console.log('合計ドキュメント数:', debugInfo.totalDocs);
+    console.log('有効な予約データ:', debugInfo.validBookings);
+    console.log('無効な予約データ:', debugInfo.invalidBookings);
+    console.log('確定済み予約:', debugInfo.confirmedBookings);
+    console.log('サンプルデータ:', debugInfo.sampleData);
+    
+    // クライアントサイドでソート
+    const sortedBookings = bookings.sort((a, b) => {
       if (a.date === b.date) {
         return a.time.localeCompare(b.time);
       }
       return a.date.localeCompare(b.date);
     });
+    
+    console.log('=== 最終結果 ===');
+    console.log('返却する予約件数:', sortedBookings.length);
+    console.log('=== getBookingsByDateRange デバッグ終了 ===');
+    
+    return sortedBookings;
   } catch (error) {
     console.error('期間別予約取得エラー:', error);
-    throw error;
+    return [];
   }
 };
 
@@ -526,6 +682,103 @@ export const getBookingStats = async (month = null) => {
   } catch (error) {
     console.error('予約統計取得エラー:', error);
     return { total: 0, thisMonth: 0, bookings: [] };
+  }
+};
+
+/**
+ * IPアドレス別の予約統計を取得（管理者用）
+ */
+export const getIPAddressBookingStats = async () => {
+  try {
+    const allBookingsQuery = query(
+      collection(db, 'bookings'),
+      where('status', '==', 'confirmed')
+    );
+    
+    const querySnapshot = await getDocs(allBookingsQuery);
+    const ipStats = {};
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const clientId = data.clientId;
+      
+      if (clientId) {
+        if (!ipStats[clientId]) {
+          ipStats[clientId] = {
+            count: 0,
+            bookings: []
+          };
+        }
+        
+        ipStats[clientId].count++;
+        ipStats[clientId].bookings.push({
+          id: doc.id,
+          customerName: data.customerName,
+          date: data.date,
+          time: data.time,
+          createdAt: data.createdAt
+        });
+      }
+    });
+    
+    // 件数が多い順にソート
+    const sortedStats = Object.entries(ipStats)
+      .map(([clientId, stats]) => ({
+        clientId,
+        ...stats,
+        isOverLimit: stats.count > 2
+      }))
+      .sort((a, b) => b.count - a.count);
+    
+    return {
+      totalUniqueIPs: Object.keys(ipStats).length,
+      overLimitIPs: sortedStats.filter(stat => stat.isOverLimit).length,
+      stats: sortedStats
+    };
+  } catch (error) {
+    console.error('IPアドレス別統計取得エラー:', error);
+    return {
+      totalUniqueIPs: 0,
+      overLimitIPs: 0,
+      stats: []
+    };
+  }
+};
+
+/**
+ * IPアドレス（clientId）ベースの予約制限チェック
+ */
+export const checkIPAddressBookingLimit = async (clientId, maxBookingsPerIP = 2) => {
+  try {
+    // clientIdの前8文字で検索（保存時と同じ形式）
+    const shortClientId = clientId.substring(0, 8);
+    
+    const ipBookingsQuery = query(
+      collection(db, 'bookings'),
+      where('clientId', '==', shortClientId),
+      where('status', '==', 'confirmed')
+    );
+    
+    const querySnapshot = await getDocs(ipBookingsQuery);
+    const existingBookings = querySnapshot.size;
+    
+    console.log(`IPアドレス制限チェック - clientId: ${shortClientId}, 既存予約数: ${existingBookings}, 上限: ${maxBookingsPerIP}`);
+    
+    return {
+      isLimitExceeded: existingBookings >= maxBookingsPerIP,
+      currentCount: existingBookings,
+      maxAllowed: maxBookingsPerIP,
+      clientId: shortClientId
+    };
+  } catch (error) {
+    console.error('IPアドレス制限チェックエラー:', error);
+    // エラーが発生した場合は制限なしとして処理を継続
+    return {
+      isLimitExceeded: false,
+      currentCount: 0,
+      maxAllowed: maxBookingsPerIP,
+      clientId: clientId.substring(0, 8)
+    };
   }
 };
 

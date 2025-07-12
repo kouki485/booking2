@@ -20,6 +20,8 @@ const AdminDashboard = () => {
   const [selectedDate, setSelectedDate] = useState(getCurrentDate());
   const [weekBookings, setWeekBookings] = useState([]);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   
   const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -64,11 +66,12 @@ const AdminDashboard = () => {
       
       console.log('週の予約データ取得開始');
       
-      // 常に今日を基準にした週を取得（日曜日起算）
+      // 常に今日を基準にした週を取得（月曜日起算）
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay());
+      // 月曜日起算: (getDay() + 6) % 7 で月曜日を0とする
+      startOfWeek.setDate(today.getDate() - (today.getDay() + 6) % 7);
       
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
@@ -78,14 +81,15 @@ const AdminDashboard = () => {
       
       console.log('=== 週の範囲計算デバッグ ===');
       console.log('今日の日付オブジェクト:', today);
-      console.log('今日の曜日番号:', today.getDay(), '(0=日曜日)');
-      console.log('週の開始日(日曜日):', startOfWeek);
-      console.log('週の終了日(土曜日):', endOfWeek);
+      console.log('今日の曜日番号:', today.getDay(), '(0=日曜日, 1=月曜日)');
+      console.log('週の開始日(月曜日):', startOfWeek);
+      console.log('週の終了日(日曜日):', endOfWeek);
       console.log('取得範囲:', { 
         startDate, 
         endDate, 
         today: today.toISOString().split('T')[0],
         todayDayOfWeek: today.getDay(),
+        mondayOffset: (today.getDay() + 6) % 7,
         startOfWeekDate: formatDateForQuery(startOfWeek),
         endOfWeekDate: formatDateForQuery(endOfWeek)
       });
@@ -134,21 +138,39 @@ const AdminDashboard = () => {
     // 管理者モードでは予約作成は行わない
   };
 
-  // 予約削除
-  const handleDeleteBooking = async (bookingId, customerName, date, time) => {
-    if (!window.confirm(`${customerName}様の予約を削除しますか？\n日時: ${date} ${time}`)) {
-      return;
-    }
+  // 予約削除の確認表示
+  const handleDeleteBookingRequest = (bookingId, customerName, date, time) => {
+    console.log('=== handleDeleteBookingRequest 開始 ===');
+    console.log('削除対象:', { bookingId, customerName, date, time });
+    console.log('認証状態:', { isAuthenticated, authLoading });
+    
+    setDeleteTarget({ bookingId, customerName, date, time });
+    setShowDeleteConfirm(true);
+  };
 
+  // 予約削除の実行
+  const handleDeleteBookingConfirmed = async () => {
+    if (!deleteTarget) return;
+    
+    const { bookingId, customerName, date, time } = deleteTarget;
+    
+    console.log('=== handleDeleteBookingConfirmed 開始 ===');
+    console.log('削除実行開始');
+    
     setIsDeleting(true);
+    setShowDeleteConfirm(false);
+    
     try {
+      console.log('deleteExistingBooking 呼び出し中...');
       await deleteExistingBooking(bookingId);
+      console.log('deleteExistingBooking 完了');
       
-      // 予約一覧を再読み込み（日曜日起算）
+      // 予約一覧を再読み込み（月曜日起算）
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const startOfWeek = new Date(today);
-      startOfWeek.setDate(today.getDate() - today.getDay());
+      // 月曜日起算: (getDay() + 6) % 7 で月曜日を0とする
+      startOfWeek.setDate(today.getDate() - (today.getDay() + 6) % 7);
       
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
@@ -156,13 +178,36 @@ const AdminDashboard = () => {
       const startDate = formatDateForQuery(startOfWeek);
       const endDate = formatDateForQuery(endOfWeek);
       
+      console.log('予約リスト更新中...', { startDate, endDate });
       const updatedBookings = await fetchBookingsByDateRange(startDate, endDate);
+      console.log('更新された予約リスト:', updatedBookings);
+      
       setWeekBookings(updatedBookings);
+      console.log('=== 削除処理完了 ===');
+      
+      // 削除成功メッセージ
+      alert(`${customerName}様の予約を削除しました`);
+      
     } catch (error) {
+      console.error('削除処理エラー:', error);
+      console.error('エラーの詳細:', {
+        message: error.message,
+        code: error.code,
+        stack: error.stack
+      });
       alert('予約の削除に失敗しました: ' + error.message);
     } finally {
+      console.log('削除処理終了');
       setIsDeleting(false);
+      setDeleteTarget(null);
     }
+  };
+
+  // 予約削除のキャンセル
+  const handleDeleteBookingCancel = () => {
+    console.log('削除がキャンセルされました');
+    setShowDeleteConfirm(false);
+    setDeleteTarget(null);
   };
 
   // 日付を正規化する関数
@@ -402,12 +447,21 @@ const AdminDashboard = () => {
                           
                           <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => handleDeleteBooking(
-                                booking.id,
-                                booking.customerName,
-                                booking.date,
-                                booking.time
-                              )}
+                              onClick={() => {
+                                console.log('削除ボタンクリック:', {
+                                  id: booking.id,
+                                  customerName: booking.customerName,
+                                  date: booking.date,
+                                  time: booking.time,
+                                  isDeleting
+                                });
+                                handleDeleteBookingRequest(
+                                  booking.id,
+                                  booking.customerName,
+                                  booking.date,
+                                  booking.time
+                                );
+                              }}
                               disabled={isDeleting}
                               className="text-red-600 hover:text-red-900 disabled:opacity-50"
                             >
@@ -426,6 +480,48 @@ const AdminDashboard = () => {
 
         </Tab.Panels>
       </Tab.Group>
+      
+      {/* 削除確認モーダル */}
+      {showDeleteConfirm && deleteTarget && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3 text-center">
+              <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+                <TrashIcon className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
+                予約を削除しますか？
+              </h3>
+              <div className="mt-2 px-7 py-3">
+                <p className="text-sm text-gray-500">
+                  <span className="font-medium text-gray-900">{deleteTarget.customerName}</span>様の予約を削除します。
+                </p>
+                <p className="text-sm text-gray-500 mt-2">
+                  日時: {deleteTarget.date} {deleteTarget.time}
+                </p>
+                <p className="text-sm text-red-600 mt-2">
+                  この操作は取り消せません。
+                </p>
+              </div>
+              <div className="flex justify-center space-x-4 mt-6">
+                <button
+                  onClick={handleDeleteBookingCancel}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 text-base font-medium rounded-md shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleDeleteBookingConfirmed}
+                  disabled={isDeleting}
+                  className="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-300 disabled:opacity-50"
+                >
+                  {isDeleting ? '削除中...' : '削除する'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

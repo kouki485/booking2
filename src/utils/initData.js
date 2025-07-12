@@ -38,10 +38,7 @@ export const initializeAdminAccount = async () => {
         });
         console.log('管理者アカウントを初期化しました');
       } else {
-        // アカウントが既に存在する場合など、エラーでも処理を続行
-        console.log('管理者アカウントの初期化をスキップしました:', result.error);
-        
-        // アカウントが既に存在する場合はマーカーを設定（重複実行を防ぐため）
+        // アカウントが既に存在する場合、マーカーを設定
         if (result.error && result.error.includes('既に使用されています')) {
           await setDoc(adminMarkerRef, {
             email: adminEmail,
@@ -49,6 +46,9 @@ export const initializeAdminAccount = async () => {
             note: 'Admin account already exists',
             status: 'exists'
           });
+          console.log('管理者アカウントは既に存在します');
+        } else {
+          console.warn('管理者アカウント作成エラー:', result.error);
         }
       }
     } else {
@@ -90,11 +90,13 @@ export const initializeAvailableHours = async () => {
   }
 };
 
-// すべてのデータを初期化する関数
+// すべてのデータを初期化する関数（エラーハンドリングを改善）
 export const initializeData = async () => {
   try {
+    // 対応可能時間の初期化
     await initializeAvailableHours();
-    // 管理者アカウント初期化はエラーが発生してもアプリケーションを停止させない
+    
+    // 管理者アカウント初期化は別途実行（エラーが発生してもアプリケーションを停止させない）
     try {
       await initializeAdminAccount();
     } catch (adminError) {

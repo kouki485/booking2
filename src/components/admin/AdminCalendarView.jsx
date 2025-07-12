@@ -6,9 +6,10 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
   const [currentWeek, setCurrentWeek] = useState(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    // 日曜日を週の始まりとする
+    // 月曜日を週の始まりとする
     const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay());
+    // 月曜日起算: (getDay() + 6) % 7 で月曜日を0とする
+    startOfWeek.setDate(today.getDate() - (today.getDay() + 6) % 7);
     return startOfWeek;
   });
   const [bookings, setBookings] = useState([]);
@@ -71,7 +72,8 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayWeekStart = new Date(today);
-    todayWeekStart.setDate(today.getDate() - today.getDay());
+    // 月曜日起算での今日の週の開始日
+    todayWeekStart.setDate(today.getDate() - (today.getDay() + 6) % 7);
     
     if (newWeek >= todayWeekStart) {
       setCurrentWeek(newWeek);
@@ -154,7 +156,8 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
               const today = new Date();
               today.setHours(0, 0, 0, 0);
               const todayWeekStart = new Date(today);
-              todayWeekStart.setDate(today.getDate() - today.getDay());
+              // 月曜日起算での今日の週の開始日
+              todayWeekStart.setDate(today.getDate() - (today.getDay() + 6) % 7);
               
               return currentWeek < todayWeekStart
                 ? 'opacity-50 cursor-not-allowed' 
@@ -165,7 +168,8 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const todayWeekStart = new Date(today);
-            todayWeekStart.setDate(today.getDate() - today.getDay());
+            // 月曜日起算での今日の週の開始日
+            todayWeekStart.setDate(today.getDate() - (today.getDay() + 6) % 7);
             
             return currentWeek < todayWeekStart;
           })()}

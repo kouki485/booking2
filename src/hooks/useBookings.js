@@ -13,6 +13,7 @@ import {
   isAvailableDay,
   isAvailableTime
 } from '../services/bookingService';
+import { useAuth } from './useAuth'; // 追加
 
 /**
  * 予約管理のためのカスタムフック
@@ -22,6 +23,8 @@ export const useBookings = () => {
   const [availableHours, setAvailableHours] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  const { user } = useAuth(); // 認証済みユーザー情報を取得
 
   // 対応可能時間を取得
   const fetchAvailableHours = useCallback(async () => {
@@ -45,12 +48,38 @@ export const useBookings = () => {
   const fetchBookings = useCallback(async (date = null) => {
     try {
       setLoading(true);
-      const bookingData = await getBookings(date);
-      setBookings(bookingData);
+      
+      // 入力データ検証
+      const filters = {};
+      if (date) {
+        if (typeof date === 'string') {
+          filters.date = date;
+        } else {
+          console.warn('fetchBookings: 無効な日付形式', date);
+          setError('無効な日付形式です');
+          return;
+        }
+      }
+      
+      const bookingData = await getBookings(filters);
+      
+      // 取得したデータの再検証
+      const validBookings = bookingData.filter(booking => 
+        booking && 
+        booking.date && 
+        booking.time && 
+        booking.customerName &&
+        typeof booking.date === 'string' &&
+        typeof booking.time === 'string' &&
+        typeof booking.customerName === 'string'
+      );
+      
+      setBookings(validBookings);
       setError(null);
     } catch (err) {
       console.error('予約の取得に失敗しました:', err);
       setError('予約の取得に失敗しました');
+      setBookings([]); // エラー時は空の配列を設定
     } finally {
       setLoading(false);
     }
@@ -116,21 +145,47 @@ export const useBookings = () => {
   // 予約を削除
   const deleteExistingBooking = useCallback(async (bookingId) => {
     try {
+      console.log('=== deleteExistingBooking 開始 ===');
+      console.log('削除対象bookingId:', bookingId);
+      console.log('認証ユーザー:', user);
+      
       setLoading(true);
-      await deleteBooking(bookingId);
+      
+      // 管理者権限チェック: 認証済みユーザーが必要
+      if (!user) {
+        throw new Error('管理者としてログインしてください');
+      }
+      
+      console.log('予約削除開始:', { bookingId, user: user.uid });
+      
+      // bookingService の deleteBooking を呼び出し
+      console.log('bookingService.deleteBooking 呼び出し中...');
+      await deleteBooking(bookingId, user);
+      console.log('bookingService.deleteBooking 完了');
       
       // 予約一覧を更新
+      console.log('予約一覧更新中...');
       await fetchBookings();
+      console.log('予約一覧更新完了');
       
       setError(null);
+      console.log('=== deleteExistingBooking 完了 ===');
+      console.log('予約削除完了:', bookingId);
     } catch (err) {
+      console.error('=== deleteExistingBooking エラー ===');
       console.error('予約の削除に失敗しました:', err);
-      setError('予約の削除に失敗しました');
+      console.error('エラーの詳細:', {
+        message: err.message,
+        code: err.code,
+        stack: err.stack
+      });
+      setError(err.message || '予約の削除に失敗しました');
       throw err;
     } finally {
+      console.log('deleteExistingBooking 最終処理');
       setLoading(false);
     }
-  }, [fetchBookings]);
+  }, [fetchBookings, user]);
 
   // 指定日の利用可能時間を取得
   const getAvailableSlots = useCallback(async (date) => {
