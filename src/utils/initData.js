@@ -16,15 +16,15 @@ export const DEFAULT_AVAILABLE_HOURS = {
 // 管理者アカウントを初期化する関数
 export const initializeAdminAccount = async () => {
   try {
-    // 指定されたアカウント情報（セキュリティ考慮で環境変数から取得、なければデフォルト値）
-    const adminEmail = process.env.REACT_APP_ADMIN_EMAIL || 'admin@idea.com';
-    const adminPassword = process.env.REACT_APP_ADMIN_PASSWORD || 'xTC4PVMivKiC';
-    
     // アカウントが既に存在するかチェック用のマーカー
     const adminMarkerRef = doc(db, 'settings', 'adminInitialized');
     const adminMarkerDoc = await getDoc(adminMarkerRef);
     
     if (!adminMarkerDoc.exists()) {
+      // 指定されたアカウント情報（セキュリティ考慮で環境変数から取得、なければデフォルト値）
+      const adminEmail = process.env.REACT_APP_ADMIN_EMAIL || 'admin@idea.com';
+      const adminPassword = process.env.REACT_APP_ADMIN_PASSWORD || 'xTC4PVMivKiC';
+      
       // 管理者アカウントの作成を試行
       const result = await createAdminAccount(adminEmail, adminPassword);
       
@@ -33,27 +33,33 @@ export const initializeAdminAccount = async () => {
         await setDoc(adminMarkerRef, {
           email: adminEmail,
           createdAt: new Date().toISOString(),
-          note: 'Initial admin account created'
+          note: 'Initial admin account created',
+          status: 'success'
         });
         console.log('管理者アカウントを初期化しました');
       } else {
         // アカウントが既に存在する場合など、エラーでも処理を続行
         console.log('管理者アカウントの初期化をスキップしました:', result.error);
         
-        // エラーでもマーカーを設定（重複実行を防ぐため）
-        await setDoc(adminMarkerRef, {
-          email: adminEmail,
-          createdAt: new Date().toISOString(),
-          note: 'Admin account initialization attempted',
-          error: result.error
-        });
+        // アカウントが既に存在する場合はマーカーを設定（重複実行を防ぐため）
+        if (result.error && result.error.includes('既に使用されています')) {
+          await setDoc(adminMarkerRef, {
+            email: adminEmail,
+            createdAt: new Date().toISOString(),
+            note: 'Admin account already exists',
+            status: 'exists'
+          });
+        }
       }
     } else {
       console.log('管理者アカウントは既に初期化済みです');
     }
   } catch (error) {
     console.warn('管理者アカウントの初期化エラー:', error);
-    // エラーが発生してもアプリケーションの動作を継続
+    // 権限エラーなど、重要でないエラーの場合は処理を継続
+    if (error.message && error.message.includes('Missing or insufficient permissions')) {
+      console.log('権限不足のため管理者アカウント初期化をスキップしました');
+    }
   }
 };
 
@@ -88,7 +94,12 @@ export const initializeAvailableHours = async () => {
 export const initializeData = async () => {
   try {
     await initializeAvailableHours();
-    await initializeAdminAccount();
+    // 管理者アカウント初期化はエラーが発生してもアプリケーションを停止させない
+    try {
+      await initializeAdminAccount();
+    } catch (adminError) {
+      console.warn('管理者アカウント初期化をスキップしました:', adminError.message);
+    }
   } catch (error) {
     console.warn('データの初期化でエラーが発生しました:', error);
   }

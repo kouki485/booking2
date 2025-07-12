@@ -66,30 +66,31 @@ const BookingForm = () => {
   // 時間スロットを生成
   const timeSlots = ['11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00', '19:00'];
 
+  // 予約数を取得・更新する関数
+  const loadBookingCounts = async (weekDates = null) => {
+    const counts = {};
+    const currentWeekDates = weekDates || generateWeekDates(currentWeek);
+    
+    for (const date of currentWeekDates) {
+      const dateStr = formatDateForSaving(date);
+      counts[dateStr] = {};
+      
+      for (const time of timeSlots) {
+        try {
+          const count = await getBookingCount(dateStr, time);
+          counts[dateStr][time] = count;
+        } catch (error) {
+          console.error('予約数取得エラー:', error);
+          counts[dateStr][time] = 0;
+        }
+      }
+    }
+    
+    setBookingCounts(counts);
+  };
+
   // 予約数を取得
   useEffect(() => {
-    const loadBookingCounts = async () => {
-      const counts = {};
-      const currentWeekDates = generateWeekDates(currentWeek);
-      
-              for (const date of currentWeekDates) {
-          const dateStr = formatDateForSaving(date);
-          counts[dateStr] = {};
-          
-          for (const time of timeSlots) {
-            try {
-              const count = await getBookingCount(dateStr, time);
-              counts[dateStr][time] = count;
-            } catch (error) {
-              console.error('予約数取得エラー:', error);
-              counts[dateStr][time] = 0;
-            }
-          }
-        }
-      
-      setBookingCounts(counts);
-    };
-
     loadBookingCounts();
   }, [currentWeek]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -262,6 +263,9 @@ const BookingForm = () => {
         // 予約履歴に保存
         saveBookingToHistory(successResult);
         
+        // 即座に予約数を更新してUIに反映
+        await loadBookingCounts();
+        
         setStep(4);
       } else {
         setBookingResult({
@@ -287,6 +291,8 @@ const BookingForm = () => {
     setBookingResult(null);
     reset();
     clearError();
+    // 予約数を再取得
+    loadBookingCounts();
   };
 
   // ローカルストレージから予約履歴を取得
