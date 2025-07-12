@@ -1,5 +1,6 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { createAdminAccount } from '../services/authService';
 
 // デフォルト対応可能時間データ
 export const DEFAULT_AVAILABLE_HOURS = {
@@ -10,6 +11,50 @@ export const DEFAULT_AVAILABLE_HOURS = {
   金: { start: '10:00', end: '17:00', isAvailable: true },
   土: { start: '10:00', end: '16:00', isAvailable: true },
   日: { start: '10:00', end: '16:00', isAvailable: false }
+};
+
+// 管理者アカウントを初期化する関数
+export const initializeAdminAccount = async () => {
+  try {
+    // 指定されたアカウント情報（セキュリティ考慮で環境変数から取得、なければデフォルト値）
+    const adminEmail = process.env.REACT_APP_ADMIN_EMAIL || 'admin@idea.com';
+    const adminPassword = process.env.REACT_APP_ADMIN_PASSWORD || 'xTC4PVMivKiC';
+    
+    // アカウントが既に存在するかチェック用のマーカー
+    const adminMarkerRef = doc(db, 'settings', 'adminInitialized');
+    const adminMarkerDoc = await getDoc(adminMarkerRef);
+    
+    if (!adminMarkerDoc.exists()) {
+      // 管理者アカウントの作成を試行
+      const result = await createAdminAccount(adminEmail, adminPassword);
+      
+      if (result.success) {
+        // 作成成功時にマーカーを設定
+        await setDoc(adminMarkerRef, {
+          email: adminEmail,
+          createdAt: new Date().toISOString(),
+          note: 'Initial admin account created'
+        });
+        console.log('管理者アカウントを初期化しました');
+      } else {
+        // アカウントが既に存在する場合など、エラーでも処理を続行
+        console.log('管理者アカウントの初期化をスキップしました:', result.error);
+        
+        // エラーでもマーカーを設定（重複実行を防ぐため）
+        await setDoc(adminMarkerRef, {
+          email: adminEmail,
+          createdAt: new Date().toISOString(),
+          note: 'Admin account initialization attempted',
+          error: result.error
+        });
+      }
+    } else {
+      console.log('管理者アカウントは既に初期化済みです');
+    }
+  } catch (error) {
+    console.warn('管理者アカウントの初期化エラー:', error);
+    // エラーが発生してもアプリケーションの動作を継続
+  }
 };
 
 // 対応可能時間を初期化する関数
@@ -43,6 +88,7 @@ export const initializeAvailableHours = async () => {
 export const initializeData = async () => {
   try {
     await initializeAvailableHours();
+    await initializeAdminAccount();
   } catch (error) {
     console.warn('データの初期化でエラーが発生しました:', error);
   }

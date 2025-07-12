@@ -152,13 +152,6 @@ export default function AdminLogin() {
               {showCreateAccount ? 'ログインに戻る' : '新しい管理者アカウントを作成'}
             </button>
           </div>
-
-          {/* テスト用のサンプルアカウント情報 */}
-          <div className="text-xs text-gray-500 text-center bg-gray-50 p-3 rounded-md">
-            <p className="font-medium mb-1">テスト用アカウント:</p>
-            <p>メール: admin@example.com</p>
-            <p>パスワード: admin123</p>
-          </div>
         </form>
       </div>
     </div>
