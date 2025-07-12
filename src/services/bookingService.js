@@ -160,27 +160,21 @@ export const createBooking = async (bookingData) => {
  */
 export const getBookings = async (filters = {}) => {
   try {
-    console.log('=== getBookings デバッグ開始 ===');
-    console.log('フィルター:', filters);
-    
     let q = collection(db, 'bookings');
     
     // フィルターの適用
     if (filters.date) {
       q = query(q, where('date', '==', filters.date));
-      console.log('日付フィルター適用:', filters.date);
     }
     
     if (filters.status) {
       q = query(q, where('status', '==', filters.status));
-      console.log('ステータスフィルター適用:', filters.status);
     }
     
     // 日付順でソート
     q = query(q, orderBy('date', 'asc'), orderBy('time', 'asc'));
     
     const querySnapshot = await getDocs(q);
-    console.log('Firestoreから取得した件数:', querySnapshot.size);
     
     const bookings = [];
     const debugInfo = {
@@ -221,13 +215,7 @@ export const getBookings = async (filters = {}) => {
       }
     });
     
-    console.log('=== getBookings データ処理統計 ===');
-    console.log('合計ドキュメント数:', debugInfo.totalDocs);
-    console.log('有効な予約データ:', debugInfo.validBookings);
-    console.log('無効な予約データ:', debugInfo.invalidBookings);
-    console.log('サンプルデータ:', debugInfo.sampleData);
-    console.log('返却する予約件数:', bookings.length);
-    console.log('=== getBookings デバッグ終了 ===');
+
     
     return bookings;
   } catch (error) {
@@ -241,11 +229,6 @@ export const getBookings = async (filters = {}) => {
  */
 export const deleteBooking = async (bookingId, adminUser) => {
   try {
-    console.log('=== deleteBooking デバッグ開始 ===');
-    console.log('bookingId:', bookingId);
-    console.log('adminUser:', adminUser);
-    console.log('current auth user:', auth.currentUser);
-    
     if (!adminUser) {
       throw new Error('管理者権限が必要です');
     }
@@ -255,12 +238,6 @@ export const deleteBooking = async (bookingId, adminUser) => {
     if (!currentUser) {
       throw new Error('Firebase認証が必要です。再度ログインしてください。');
     }
-    
-    console.log('認証済みユーザー:', {
-      uid: currentUser.uid,
-      email: currentUser.email,
-      emailVerified: currentUser.emailVerified
-    });
     
     const clientId = getClientIP();
     
@@ -281,12 +258,8 @@ export const deleteBooking = async (bookingId, adminUser) => {
       throw new Error('無効な予約IDです');
     }
     
-    console.log('Firestore削除操作を実行中...');
-    
     // Firestoreから予約を削除
     await deleteDoc(doc(db, 'bookings', sanitizedBookingId));
-    
-    console.log('Firestore削除操作完了');
     
     // セキュリティログ
     logSecurityEvent('booking_deleted', {
@@ -295,15 +268,9 @@ export const deleteBooking = async (bookingId, adminUser) => {
       adminEmail: adminUser.email
     });
     
-    console.log('=== deleteBooking デバッグ終了 ===');
     return { success: true };
   } catch (error) {
     console.error('予約削除エラー:', error);
-    console.error('エラーの詳細:', {
-      message: error.message,
-      code: error.code,
-      stack: error.stack
-    });
     
     logSecurityEvent('booking_deletion_error', {
       error: error.message,
@@ -468,17 +435,14 @@ export const checkDuplicateBooking = async (customerName, date, time) => {
  */
 export const getAvailableHours = async () => {
   try {
-    console.log('getAvailableHours: Firebase接続を試行中');
     const availableHoursRef = doc(db, 'settings', 'availableHours');
     const availableHoursDoc = await getDoc(availableHoursRef);
     
     if (availableHoursDoc.exists()) {
       const data = availableHoursDoc.data();
-      console.log('getAvailableHours: Firestoreからデータを取得', data);
       return data.hours || DEFAULT_AVAILABLE_HOURS;
     } else {
       // ドキュメントが存在しない場合、デフォルト値を返す
-      console.warn('getAvailableHours: ドキュメントが存在しません。デフォルト値を使用します');
       return DEFAULT_AVAILABLE_HOURS;
     }
   } catch (error) {
@@ -488,7 +452,6 @@ export const getAvailableHours = async () => {
     try {
       const savedHours = localStorage.getItem('availableHours');
       if (savedHours) {
-        console.log('getAvailableHours: LocalStorageから取得しました');
         return JSON.parse(savedHours);
       }
     } catch (localStorageError) {
@@ -496,7 +459,6 @@ export const getAvailableHours = async () => {
     }
     
     // すべて失敗した場合、デフォルト値を返す
-    console.warn('getAvailableHours: すべて失敗。デフォルト値を使用します', DEFAULT_AVAILABLE_HOURS);
     return DEFAULT_AVAILABLE_HOURS;
   }
 };
@@ -555,9 +517,6 @@ export const getBookingsByDateRange = async (startDate, endDate) => {
       return [];
     }
     
-    console.log('=== getBookingsByDateRange デバッグ開始 ===');
-    console.log('検索範囲:', { startDate, endDate });
-    
     // シンプルなクエリを使用してFirestoreの制限を回避
     const q = query(
       collection(db, 'bookings'),
@@ -566,7 +525,6 @@ export const getBookingsByDateRange = async (startDate, endDate) => {
     );
     
     const querySnapshot = await getDocs(q);
-    console.log('Firestoreから取得した生データ件数:', querySnapshot.size);
     
     const bookings = [];
     const debugInfo = {
@@ -613,13 +571,6 @@ export const getBookingsByDateRange = async (startDate, endDate) => {
       }
     });
     
-    console.log('=== データ処理統計 ===');
-    console.log('合計ドキュメント数:', debugInfo.totalDocs);
-    console.log('有効な予約データ:', debugInfo.validBookings);
-    console.log('無効な予約データ:', debugInfo.invalidBookings);
-    console.log('確定済み予約:', debugInfo.confirmedBookings);
-    console.log('サンプルデータ:', debugInfo.sampleData);
-    
     // クライアントサイドでソート
     const sortedBookings = bookings.sort((a, b) => {
       if (a.date === b.date) {
@@ -627,10 +578,6 @@ export const getBookingsByDateRange = async (startDate, endDate) => {
       }
       return a.date.localeCompare(b.date);
     });
-    
-    console.log('=== 最終結果 ===');
-    console.log('返却する予約件数:', sortedBookings.length);
-    console.log('=== getBookingsByDateRange デバッグ終了 ===');
     
     return sortedBookings;
   } catch (error) {
@@ -762,7 +709,7 @@ export const checkIPAddressBookingLimit = async (clientId, maxBookingsPerIP = 2)
     const querySnapshot = await getDocs(ipBookingsQuery);
     const existingBookings = querySnapshot.size;
     
-    console.log(`IPアドレス制限チェック - clientId: ${shortClientId}, 既存予約数: ${existingBookings}, 上限: ${maxBookingsPerIP}`);
+
     
     return {
       isLimitExceeded: existingBookings >= maxBookingsPerIP,

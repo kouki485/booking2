@@ -236,7 +236,7 @@ export const initializeSecurity = () => {
       timestamp: new Date().toISOString()
     });
     
-    console.log('セキュリティ機能が初期化されました');
+  
   } catch (error) {
     console.error('セキュリティ初期化エラー:', error);
   }

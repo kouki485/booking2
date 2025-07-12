@@ -29,17 +29,14 @@ export const useBookings = () => {
   // 対応可能時間を取得
   const fetchAvailableHours = useCallback(async () => {
     try {
-      console.log('fetchAvailableHours: 開始');
       setLoading(true);
       const hours = await getAvailableHours();
-      console.log('fetchAvailableHours: 取得完了', hours);
       setAvailableHours(hours);
       setError(null);
     } catch (err) {
       console.error('対応可能時間の取得に失敗しました:', err);
       setError('対応可能時間の取得に失敗しました');
     } finally {
-      console.log('fetchAvailableHours: 完了');
       setLoading(false);
     }
   }, []);
@@ -145,10 +142,6 @@ export const useBookings = () => {
   // 予約を削除
   const deleteExistingBooking = useCallback(async (bookingId) => {
     try {
-      console.log('=== deleteExistingBooking 開始 ===');
-      console.log('削除対象bookingId:', bookingId);
-      console.log('認証ユーザー:', user);
-      
       setLoading(true);
       
       // 管理者権限チェック: 認証済みユーザーが必要
@@ -156,33 +149,17 @@ export const useBookings = () => {
         throw new Error('管理者としてログインしてください');
       }
       
-      console.log('予約削除開始:', { bookingId, user: user.uid });
-      
-      // bookingService の deleteBooking を呼び出し
-      console.log('bookingService.deleteBooking 呼び出し中...');
       await deleteBooking(bookingId, user);
-      console.log('bookingService.deleteBooking 完了');
       
       // 予約一覧を更新
-      console.log('予約一覧更新中...');
       await fetchBookings();
-      console.log('予約一覧更新完了');
       
       setError(null);
-      console.log('=== deleteExistingBooking 完了 ===');
-      console.log('予約削除完了:', bookingId);
     } catch (err) {
-      console.error('=== deleteExistingBooking エラー ===');
       console.error('予約の削除に失敗しました:', err);
-      console.error('エラーの詳細:', {
-        message: err.message,
-        code: err.code,
-        stack: err.stack
-      });
       setError(err.message || '予約の削除に失敗しました');
       throw err;
     } finally {
-      console.log('deleteExistingBooking 最終処理');
       setLoading(false);
     }
   }, [fetchBookings, user]);

@@ -47,10 +47,7 @@ const BookingForm = () => {
       dates.push(date);
     }
     
-    console.log('週の日付生成:', {
-      startDate: startDate.toDateString(),
-      dates: dates.map(d => d.toDateString())
-    });
+
     
     return dates;
   };
@@ -241,13 +238,7 @@ const BookingForm = () => {
       customerName: data.customerName.trim()
     };
 
-    console.log('予約データ保存:', {
-      selectedDate: selectedDate,
-      selectedDateString: selectedDate.toDateString(),
-      selectedDateISO: selectedDate.toISOString(),
-      formattedDate: bookingData.date,
-      time: bookingData.time
-    });
+
 
     try {
       const result = await addBooking(bookingData);

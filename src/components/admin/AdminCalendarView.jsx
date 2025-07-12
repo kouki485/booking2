@@ -95,15 +95,7 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
         const startDate = formatDateForComparison(weekDates[0]);
         const endDate = formatDateForComparison(weekDates[6]);
         
-        console.log('AdminCalendarView - 予約データ取得範囲:', { 
-          startDate, 
-          endDate,
-          startDateObj: weekDates[0],
-          endDateObj: weekDates[6]
-        });
-        
         const fetchedBookings = await fetchBookingsByDateRange(startDate, endDate);
-        console.log('AdminCalendarView - 取得した予約:', fetchedBookings);
         setBookings(fetchedBookings);
       } catch (error) {
         console.error('予約データの取得に失敗しました:', error);

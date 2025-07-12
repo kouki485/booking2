@@ -41,10 +41,9 @@ if (process.env.NODE_ENV === 'development' && !window.FIREBASE_EMULATOR_CONNECTE
       connectFunctionsEmulator(functions, 'localhost', 5001);
       
       window.FIREBASE_EMULATOR_CONNECTED = true;
-      console.log('Firebase エミュレーターに接続しました');
     }
   } catch (error) {
-    console.log('Firebase エミュレーター接続をスキップしました:', error.message);
+    // エミュレーター接続をスキップ
   }
 }
 

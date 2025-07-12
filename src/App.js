@@ -15,9 +15,7 @@ function AppContent() {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log('アプリケーションの初期化を開始します...');
         await initializeData();
-        console.log('アプリケーションの初期化が完了しました');
         setIsInitialized(true);
       } catch (error) {
         console.warn('初期化でエラーが発生しました:', error);

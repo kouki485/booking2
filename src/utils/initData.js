@@ -36,7 +36,7 @@ export const initializeAdminAccount = async () => {
           note: 'Initial admin account created',
           status: 'success'
         });
-        console.log('管理者アカウントを初期化しました');
+
       } else {
         // アカウントが既に存在する場合、マーカーを設定
         if (result.error && result.error.includes('既に使用されています')) {
@@ -46,19 +46,19 @@ export const initializeAdminAccount = async () => {
             note: 'Admin account already exists',
             status: 'exists'
           });
-          console.log('管理者アカウントは既に存在します');
+
         } else {
           console.warn('管理者アカウント作成エラー:', result.error);
         }
       }
     } else {
-      console.log('管理者アカウントは既に初期化済みです');
+      // 管理者アカウントは既に初期化済み
     }
   } catch (error) {
     console.warn('管理者アカウントの初期化エラー:', error);
     // 権限エラーなど、重要でないエラーの場合は処理を継続
     if (error.message && error.message.includes('Missing or insufficient permissions')) {
-      console.log('権限不足のため管理者アカウント初期化をスキップしました');
+      // 権限不足のため管理者アカウント初期化をスキップ
     }
   }
 };
@@ -76,14 +76,14 @@ export const initializeAvailableHours = async () => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
-      console.log('対応可能時間を初期化しました');
+
     }
   } catch (error) {
     console.warn('対応可能時間の初期化エラー:', error);
     // エラーが発生した場合、LocalStorageにデフォルト値を保存
     try {
       localStorage.setItem('availableHours', JSON.stringify(DEFAULT_AVAILABLE_HOURS));
-      console.log('LocalStorageに対応可能時間を保存しました');
+
     } catch (localStorageError) {
       console.warn('LocalStorageの保存に失敗:', localStorageError);
     }
@@ -154,7 +154,7 @@ export const resetAvailableHours = async () => {
     };
     
     await setDoc(availableHoursRef, initialAvailableHours);
-    console.log('対応可能時間データをリセットしました');
+
     
     return { 
       success: true, 

@@ -45,7 +45,6 @@ const AdminDashboard = () => {
   // 認証チェック
   useEffect(() => {
     if (!authLoading && !isAuthenticated) {
-      console.log('認証されていないため、ログインページにリダイレクト');
       navigate('/admin/login', { replace: true });
     }
   }, [isAuthenticated, authLoading, navigate]);
@@ -60,11 +59,8 @@ const AdminDashboard = () => {
   useEffect(() => {
     const loadWeekBookings = async () => {
       if (!isAuthenticated || authLoading) {
-        console.log('認証待機中またはログインが必要');
         return;
       }
-      
-      console.log('週の予約データ取得開始');
       
       // 常に今日を基準にした週を取得（月曜日起算）
       const today = new Date();
@@ -79,26 +75,8 @@ const AdminDashboard = () => {
       const startDate = formatDateForQuery(startOfWeek);
       const endDate = formatDateForQuery(endOfWeek);
       
-      console.log('=== 週の範囲計算デバッグ ===');
-      console.log('今日の日付オブジェクト:', today);
-      console.log('今日の曜日番号:', today.getDay(), '(0=日曜日, 1=月曜日)');
-      console.log('週の開始日(月曜日):', startOfWeek);
-      console.log('週の終了日(日曜日):', endOfWeek);
-      console.log('取得範囲:', { 
-        startDate, 
-        endDate, 
-        today: today.toISOString().split('T')[0],
-        todayDayOfWeek: today.getDay(),
-        mondayOffset: (today.getDay() + 6) % 7,
-        startOfWeekDate: formatDateForQuery(startOfWeek),
-        endOfWeekDate: formatDateForQuery(endOfWeek)
-      });
-      console.log('=== 週の範囲計算デバッグ終了 ===');
-      
       try {
         const bookings = await fetchBookingsByDateRange(startDate, endDate);
-        console.log('取得成功:', bookings.length, '件の予約');
-        console.log('予約詳細:', bookings);
         
         // データの整合性チェック
         const validBookings = bookings.filter(booking => {
@@ -114,13 +92,7 @@ const AdminDashboard = () => {
           return true;
         });
         
-        console.log('有効な予約データ:', validBookings.length, '件');
         setWeekBookings(validBookings);
-        
-        // 今日の予約を即座にチェック
-        const todayStr = formatDateForQuery(today);
-        const todayBookingsImmediate = validBookings.filter(booking => booking.date === todayStr);
-        console.log('即座チェック - 今日の予約:', todayBookingsImmediate);
         
       } catch (err) {
         console.error('予約取得エラー:', err);
@@ -140,10 +112,6 @@ const AdminDashboard = () => {
 
   // 予約削除の確認表示
   const handleDeleteBookingRequest = (bookingId, customerName, date, time) => {
-    console.log('=== handleDeleteBookingRequest 開始 ===');
-    console.log('削除対象:', { bookingId, customerName, date, time });
-    console.log('認証状態:', { isAuthenticated, authLoading });
-    
     setDeleteTarget({ bookingId, customerName, date, time });
     setShowDeleteConfirm(true);
   };
@@ -154,16 +122,11 @@ const AdminDashboard = () => {
     
     const { bookingId, customerName, date, time } = deleteTarget;
     
-    console.log('=== handleDeleteBookingConfirmed 開始 ===');
-    console.log('削除実行開始');
-    
     setIsDeleting(true);
     setShowDeleteConfirm(false);
     
     try {
-      console.log('deleteExistingBooking 呼び出し中...');
       await deleteExistingBooking(bookingId);
-      console.log('deleteExistingBooking 完了');
       
       // 予約一覧を再読み込み（月曜日起算）
       const today = new Date();
@@ -178,26 +141,16 @@ const AdminDashboard = () => {
       const startDate = formatDateForQuery(startOfWeek);
       const endDate = formatDateForQuery(endOfWeek);
       
-      console.log('予約リスト更新中...', { startDate, endDate });
       const updatedBookings = await fetchBookingsByDateRange(startDate, endDate);
-      console.log('更新された予約リスト:', updatedBookings);
-      
       setWeekBookings(updatedBookings);
-      console.log('=== 削除処理完了 ===');
       
       // 削除成功メッセージ
       alert(`${customerName}様の予約を削除しました`);
       
     } catch (error) {
       console.error('削除処理エラー:', error);
-      console.error('エラーの詳細:', {
-        message: error.message,
-        code: error.code,
-        stack: error.stack
-      });
       alert('予約の削除に失敗しました: ' + error.message);
     } finally {
-      console.log('削除処理終了');
       setIsDeleting(false);
       setDeleteTarget(null);
     }
@@ -205,7 +158,6 @@ const AdminDashboard = () => {
 
   // 予約削除のキャンセル
   const handleDeleteBookingCancel = () => {
-    console.log('削除がキャンセルされました');
     setShowDeleteConfirm(false);
     setDeleteTarget(null);
   };
@@ -236,39 +188,19 @@ const AdminDashboard = () => {
     const today = getCurrentDate();
     const todayNormalized = formatDateForQuery(new Date());
     
-    console.log('=== 予約統計デバッグ情報 ===');
-    console.log('getCurrentDate()結果:', today);
-    console.log('正規化された今日の日付:', todayNormalized);
-    console.log('週の予約データ件数:', weekBookings.length);
-    
-    if (weekBookings.length > 0) {
-      console.log('週の予約データ詳細:');
-      weekBookings.forEach((booking, index) => {
-        console.log(`  ${index + 1}. ID: ${booking.id}, 日付: "${booking.date}", 時間: "${booking.time}", 名前: "${booking.customerName}"`);
-      });
-    }
-    
     // 今日の予約をフィルタリング
     const todayBookings = weekBookings.filter(booking => {
       if (!booking.date) {
-        console.log('予約に日付がありません:', booking);
         return false;
       }
       
       const bookingDateNormalized = booking.date; // 既にYYYY-MM-DD形式で保存されている
       const isToday = bookingDateNormalized === today || bookingDateNormalized === todayNormalized;
       
-      console.log(`予約${booking.id}: 予約日="${booking.date}" -> 正規化="${bookingDateNormalized}", 今日判定=${isToday}`);
-      
       return isToday;
     });
     
     const weekTotal = weekBookings.length;
-    
-    console.log('最終的な今日の予約:', todayBookings);
-    console.log('今日の予約件数:', todayBookings.length);
-    console.log('今週の予約件数:', weekTotal);
-    console.log('=== デバッグ情報終了 ===');
     
     return {
       today: todayBookings.length,
@@ -447,21 +379,12 @@ const AdminDashboard = () => {
                           
                           <div className="flex items-center space-x-2">
                             <button
-                              onClick={() => {
-                                console.log('削除ボタンクリック:', {
-                                  id: booking.id,
-                                  customerName: booking.customerName,
-                                  date: booking.date,
-                                  time: booking.time,
-                                  isDeleting
-                                });
-                                handleDeleteBookingRequest(
-                                  booking.id,
-                                  booking.customerName,
-                                  booking.date,
-                                  booking.time
-                                );
-                              }}
+                              onClick={() => handleDeleteBookingRequest(
+                                booking.id,
+                                booking.customerName,
+                                booking.date,
+                                booking.time
+                              )}
                               disabled={isDeleting}
                               className="text-red-600 hover:text-red-900 disabled:opacity-50"
                             >
