@@ -5,12 +5,12 @@ import Layout from './components/common/Layout';
 import BookingForm from './components/booking/BookingForm';
 import AdminLogin from './components/admin/AdminLogin';
 import AdminDashboard from './components/admin/AdminDashboard';
-import { useAuth } from './hooks/useAuth';
+import { AuthProvider, useAuth } from './hooks/useAuth';
 
-function App() {
+function AppContent() {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState(null);
-  const { loading, isAuthenticated, isAdminUser } = useAuth();
+  const { loading, isAuthenticated, user } = useAuth();
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -80,7 +80,7 @@ function App() {
           <Route 
             path="/admin" 
             element={
-              isAuthenticated && isAdminUser ? (
+              isAuthenticated && user ? (
                 <Layout>
                   <AdminDashboard />
                 </Layout>
@@ -95,6 +95,14 @@ function App() {
         </Routes>
       </div>
     </Router>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 

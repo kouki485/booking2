@@ -1,75 +1,331 @@
-import { db } from './firebase';
 import { 
   collection, 
   addDoc, 
+  getDocs, 
+  deleteDoc, 
+  doc, 
   query, 
   where, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  orderBy, 
-  limit,
-  updateDoc,
-  deleteDoc
+  orderBy,
+  writeBatch,
+  getDoc,
+  updateDoc
 } from 'firebase/firestore';
+import { db } from './firebase';
+import { validateCustomerName, sanitizeString } from '../utils/validation';
+import { 
+  checkRateLimit, 
+  getClientIP, 
+  detectSQLInjection, 
+  detectXSS, 
+  sanitizeInput,
+  logSecurityEvent,
+  detectAnomalousActivity
+} from '../utils/security';
 import { DEFAULT_AVAILABLE_HOURS } from '../utils/initData';
 
 /**
- * 予約を作成
+ * 予約を作成する（セキュリティ強化版）
  */
 export const createBooking = async (bookingData) => {
   try {
-    const bookingRef = await addDoc(collection(db, 'bookings'), {
-      ...bookingData,
-      createdAt: new Date().toISOString(),
-      status: 'confirmed'
+    const clientId = getClientIP();
+    
+    // レート制限チェック（1時間に5回まで）
+    if (!checkRateLimit(`booking_${clientId}`, 5, 60 * 60 * 1000)) {
+      logSecurityEvent('rate_limit_exceeded', { 
+        action: 'create_booking',
+        clientId 
+      });
+      throw new Error('予約作成回数の上限に達しました。しばらく時間をおいてから再試行してください。');
+    }
+    
+    // 異常なアクティビティの検出
+    if (detectAnomalousActivity(clientId, 'booking_creation')) {
+      logSecurityEvent('anomalous_activity', { 
+        action: 'create_booking',
+        clientId 
+      });
+      throw new Error('異常なアクセスパターンが検出されました。');
+    }
+    
+    // 入力データのセキュリティチェック
+    const securityChecks = {
+      customerName: detectSQLInjection(bookingData.customerName) || detectXSS(bookingData.customerName),
+      date: detectSQLInjection(bookingData.date) || detectXSS(bookingData.date),
+      time: detectSQLInjection(bookingData.time) || detectXSS(bookingData.time)
+    };
+    
+    if (Object.values(securityChecks).some(check => check)) {
+      logSecurityEvent('malicious_input_detected', { 
+        bookingData,
+        securityChecks,
+        clientId 
+      });
+      throw new Error('不正な入力が検出されました。');
+    }
+    
+    // 入力データのサニタイゼーション
+    const sanitizedData = {
+      customerName: sanitizeInput(bookingData.customerName, { maxLength: 50, allowSpecialChars: false }),
+      date: sanitizeInput(bookingData.date, { maxLength: 10, allowSpecialChars: false }),
+      time: sanitizeInput(bookingData.time, { maxLength: 5, allowSpecialChars: false }),
+      status: 'confirmed',
+      createdAt: new Date(),
+      clientId: clientId.substring(0, 8) // 識別用に一部のみ保存
+    };
+    
+    // バリデーション
+    const nameValidation = validateCustomerName(sanitizedData.customerName);
+    if (!nameValidation.isValid) {
+      throw new Error(nameValidation.errors[0]);
+    }
+    
+    // 既存の予約数をチェック（容量制限）
+    const timeSlotQuery = query(
+      collection(db, 'bookings'),
+      where('date', '==', sanitizedData.date),
+      where('time', '==', sanitizedData.time),
+      where('status', '==', 'confirmed')
+    );
+    
+    const existingBookings = await getDocs(timeSlotQuery);
+    const maxCapacity = 3;
+    
+    if (existingBookings.size >= maxCapacity) {
+      throw new Error('申し訳ございませんが、この時間枠は既に満席です。');
+    }
+    
+    // 同じ顧客名での重複予約チェック
+    const duplicateQuery = query(
+      collection(db, 'bookings'),
+      where('date', '==', sanitizedData.date),
+      where('time', '==', sanitizedData.time),
+      where('customerName', '==', sanitizedData.customerName),
+      where('status', '==', 'confirmed')
+    );
+    
+    const duplicateBookings = await getDocs(duplicateQuery);
+    if (!duplicateBookings.empty) {
+      throw new Error('同じお名前で同じ時間帯に既に予約が存在します。');
+    }
+    
+    // 予約をFirestoreに追加
+    const docRef = await addDoc(collection(db, 'bookings'), sanitizedData);
+    
+    // セキュリティログ
+    logSecurityEvent('booking_created', {
+      bookingId: docRef.id,
+      clientId: clientId.substring(0, 8),
+      date: sanitizedData.date,
+      time: sanitizedData.time
     });
     
-    return { success: true, id: bookingRef.id };
+    return {
+      success: true,
+      bookingId: docRef.id,
+      ...sanitizedData
+    };
+    
   } catch (error) {
     console.error('予約作成エラー:', error);
+    
+    // エラーログ（詳細情報は本番環境では記録しない）
+    if (process.env.NODE_ENV === 'development') {
+      logSecurityEvent('booking_creation_error', {
+        error: error.message,
+        bookingData
+      });
+    }
+    
     throw error;
   }
 };
 
 /**
- * 予約一覧を取得
+ * 予約一覧を取得する（管理者用）
  */
-export const getBookings = async (date = null) => {
+export const getBookings = async (filters = {}) => {
   try {
     let q = collection(db, 'bookings');
     
-    if (date) {
-      q = query(
-        collection(db, 'bookings'),
-        where('date', '==', date)
-      );
-    } else {
-      q = query(
-        collection(db, 'bookings'),
-        limit(100)
-      );
+    // フィルターの適用
+    if (filters.date) {
+      q = query(q, where('date', '==', filters.date));
     }
+    
+    if (filters.status) {
+      q = query(q, where('status', '==', filters.status));
+    }
+    
+    // 日付順でソート
+    q = query(q, orderBy('date', 'asc'), orderBy('time', 'asc'));
     
     const querySnapshot = await getDocs(q);
-    const bookings = querySnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const bookings = [];
     
-    // クライアントサイドでソート
-    if (date) {
-      return bookings.sort((a, b) => a.time.localeCompare(b.time));
-    } else {
-      return bookings.sort((a, b) => {
-        const aDate = new Date(a.createdAt || a.date);
-        const bDate = new Date(b.createdAt || b.date);
-        return bDate - aDate;
+    querySnapshot.forEach((doc) => {
+      bookings.push({
+        id: doc.id,
+        ...doc.data()
       });
-    }
+    });
+    
+    return bookings;
   } catch (error) {
     console.error('予約取得エラー:', error);
+    throw new Error('予約データの取得に失敗しました');
+  }
+};
+
+/**
+ * 予約を削除する（管理者用、セキュリティ強化版）
+ */
+export const deleteBooking = async (bookingId, adminUser) => {
+  try {
+    if (!adminUser) {
+      throw new Error('管理者権限が必要です');
+    }
+    
+    const clientId = getClientIP();
+    
+    // 管理者操作のレート制限（1分間に10回まで）
+    if (!checkRateLimit(`admin_delete_${clientId}`, 10, 60 * 1000)) {
+      logSecurityEvent('admin_rate_limit_exceeded', { 
+        action: 'delete_booking',
+        adminId: adminUser.uid,
+        bookingId 
+      });
+      throw new Error('操作回数の上限に達しました。');
+    }
+    
+    // 入力のサニタイゼーション
+    const sanitizedBookingId = sanitizeString(bookingId);
+    
+    if (!sanitizedBookingId) {
+      throw new Error('無効な予約IDです');
+    }
+    
+    await deleteDoc(doc(db, 'bookings', sanitizedBookingId));
+    
+    // セキュリティログ
+    logSecurityEvent('booking_deleted', {
+      bookingId: sanitizedBookingId,
+      adminId: adminUser.uid,
+      adminEmail: adminUser.email
+    });
+    
+    return { success: true };
+  } catch (error) {
+    console.error('予約削除エラー:', error);
+    
+    logSecurityEvent('booking_deletion_error', {
+      error: error.message,
+      bookingId,
+      adminId: adminUser?.uid
+    });
+    
     throw error;
+  }
+};
+
+/**
+ * 複数の予約を一括削除する（管理者用）
+ */
+export const deleteMultipleBookings = async (bookingIds, adminUser) => {
+  try {
+    if (!adminUser) {
+      throw new Error('管理者権限が必要です');
+    }
+    
+    if (!Array.isArray(bookingIds) || bookingIds.length === 0) {
+      throw new Error('削除する予約が選択されていません');
+    }
+    
+    if (bookingIds.length > 50) {
+      throw new Error('一度に削除できる予約は50件までです');
+    }
+    
+    const clientId = getClientIP();
+    
+    // 一括削除のレート制限
+    if (!checkRateLimit(`admin_bulk_delete_${clientId}`, 3, 60 * 1000)) {
+      logSecurityEvent('admin_bulk_delete_rate_limit', { 
+        adminId: adminUser.uid,
+        attemptedCount: bookingIds.length 
+      });
+      throw new Error('一括削除の回数制限に達しました。');
+    }
+    
+    const batch = writeBatch(db);
+    const sanitizedIds = bookingIds.map(id => sanitizeString(id)).filter(id => id);
+    
+    sanitizedIds.forEach(bookingId => {
+      const bookingRef = doc(db, 'bookings', bookingId);
+      batch.delete(bookingRef);
+    });
+    
+    await batch.commit();
+    
+    // セキュリティログ
+    logSecurityEvent('bulk_booking_deletion', {
+      deletedCount: sanitizedIds.length,
+      adminId: adminUser.uid,
+      adminEmail: adminUser.email
+    });
+    
+    return { 
+      success: true, 
+      deletedCount: sanitizedIds.length 
+    };
+  } catch (error) {
+    console.error('一括削除エラー:', error);
+    throw error;
+  }
+};
+
+/**
+ * 今日の予約数を取得
+ */
+export const getTodayBookingsCount = async () => {
+  try {
+    const today = new Date().toLocaleDateString('ja-JP', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).replace(/\//g, '-');
+    
+    const todayQuery = query(
+      collection(db, 'bookings'),
+      where('date', '==', today),
+      where('status', '==', 'confirmed')
+    );
+    
+    const snapshot = await getDocs(todayQuery);
+    return snapshot.size;
+  } catch (error) {
+    console.error('今日の予約数取得エラー:', error);
+    return 0;
+  }
+};
+
+/**
+ * 指定期間の予約数を取得
+ */
+export const getBookingsCountByDateRange = async (startDate, endDate) => {
+  try {
+    const q = query(
+      collection(db, 'bookings'),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate),
+      where('status', '==', 'confirmed')
+    );
+    
+    const snapshot = await getDocs(q);
+    return snapshot.size;
+  } catch (error) {
+    console.error('期間別予約数取得エラー:', error);
+    return 0;
   }
 };
 
@@ -191,21 +447,6 @@ export const updateBooking = async (bookingId, updates) => {
     return { success: true };
   } catch (error) {
     console.error('予約更新エラー:', error);
-    throw error;
-  }
-};
-
-/**
- * 予約を削除
- */
-export const deleteBooking = async (bookingId) => {
-  try {
-    const bookingRef = doc(db, 'bookings', bookingId);
-    await deleteDoc(bookingRef);
-    
-    return { success: true };
-  } catch (error) {
-    console.error('予約削除エラー:', error);
     throw error;
   }
 };

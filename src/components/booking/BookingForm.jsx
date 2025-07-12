@@ -436,7 +436,7 @@ const BookingForm = () => {
       </div>
 
       {/* メインコンテンツ */}
-      <div className="px-3 sm:px-4 pb-40">
+      <div className="px-3 sm:px-4 pb-6">
         {/* ステップ1: 日程選択 */}
         {step === 1 && (
           <div className="space-y-4">
@@ -554,6 +554,21 @@ const BookingForm = () => {
                 </div>
               </div>
             </div>
+
+            {/* 次へボタン */}
+            <div className="pt-4">
+              <button
+                onClick={goToNextStep}
+                disabled={!selectedDate || !selectedTime}
+                className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                  selectedDate && selectedTime
+                    ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700'
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                }`}
+              >
+                次へ
+              </button>
+            </div>
           </div>
         )}
 
@@ -603,12 +618,31 @@ const BookingForm = () => {
                 </div>
               </form>
             </div>
+
+            {/* ボタン */}
+            <div className="pt-4">
+              <div className="flex space-x-3">
+                <button
+                  onClick={goToPreviousStep}
+                  className="flex-1 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                >
+                  戻る
+                </button>
+                <button
+                  onClick={handleSubmit(onSubmit)}
+                  disabled={isSubmitting}
+                  className="flex-1 py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 active:bg-green-700 disabled:opacity-50 transition-colors"
+                >
+                  {isSubmitting ? '予約中...' : '予約する'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
         {/* ステップ4: 完了 */}
         {step === 4 && bookingResult && (
-          <div className="space-y-4 mb-8">
+          <div className="space-y-4">
             <div className="bg-white rounded-lg p-6 text-center">
               {bookingResult.success ? (
                 <>
@@ -648,51 +682,17 @@ const BookingForm = () => {
                 </>
               )}
             </div>
-          </div>
-        )}
-      </div>
 
-      {/* 固定ボタン */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg safe-area-inset-bottom">
-        {step === 1 && (
-          <button
-            onClick={goToNextStep}
-            disabled={!selectedDate || !selectedTime}
-            className={`w-full py-3 rounded-lg font-medium transition-colors ${
-              selectedDate && selectedTime
-                ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            次へ
-          </button>
-        )}
-        
-        {step === 2 && (
-          <div className="flex space-x-3">
-            <button
-              onClick={goToPreviousStep}
-              className="flex-1 py-3 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition-colors"
-            >
-              戻る
-            </button>
-            <button
-              onClick={handleSubmit(onSubmit)}
-              disabled={isSubmitting}
-              className="flex-1 py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 active:bg-green-700 disabled:opacity-50 transition-colors"
-            >
-              {isSubmitting ? '予約中...' : '予約する'}
-            </button>
+            {/* 新しい予約ボタン */}
+            <div className="pt-4">
+              <button
+                onClick={handleRestart}
+                className="w-full py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 active:bg-green-700 transition-colors"
+              >
+                新しい予約を作成する
+              </button>
+            </div>
           </div>
-        )}
-        
-        {step === 4 && (
-          <button
-            onClick={handleRestart}
-            className="w-full py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 active:bg-green-700 transition-colors"
-          >
-            新しい予約を作成する
-          </button>
         )}
       </div>
 

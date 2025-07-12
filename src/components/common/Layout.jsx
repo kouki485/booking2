@@ -70,23 +70,9 @@ const Layout = ({ children }) => {
       </header>
 
       {/* メインコンテンツ */}
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8 pb-24">
         {children}
       </main>
-
-      {/* フッター */}
-      <footer className="bg-white border-t border-gray-200 mt-8">
-        <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <div className="text-center text-sm text-gray-500">
-            <p>
-              2025 公式アイデア予約表
-            </p>
-            <p className="mt-1">
-              その他に関するお問い合わせは公式ラインまでご連絡ください。
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 };

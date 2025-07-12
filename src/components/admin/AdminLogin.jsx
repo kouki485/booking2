@@ -1,146 +1,121 @@
 import React, { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { EyeIcon, EyeSlashIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from 'react-router-dom';
+import { loginWithEmail } from '../../services/authService';
 import { useAuth } from '../../hooks/useAuth';
 
-const AdminLogin = () => {
-  const [showPassword, setShowPassword] = useState(false);
-  const [loginError, setLoginError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const { setIsAuthenticated } = useAuth();
-  
-  const { 
-    register, 
-    handleSubmit, 
-    formState: { errors } 
-  } = useForm();
+export default function AdminLogin() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [formData, setFormData] = useState({
+    email: '',
+    password: ''
+  });
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  // 固定の認証情報
-  const ADMIN_LOGIN_ID = 'admin';
-  const ADMIN_PASSWORD = 'p7KRZ69e';
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
-  // ログインフォーム送信
-  const onSubmit = async (data) => {
-    setIsLoading(true);
-    setLoginError('');
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
     try {
-      // 固定のログインIDとパスワードをチェック
-      if (data.loginId === ADMIN_LOGIN_ID && data.password === ADMIN_PASSWORD) {
-        // 認証成功
-        console.log('認証成功 - ローカルストレージ保存');
-        localStorage.setItem('isAdminLoggedIn', 'true');
-        
-        // 認証状態を更新
-        setIsAuthenticated(true);
-        
-        console.log('管理画面に強制リダイレクト実行');
-        // window.location.hrefを使用して確実にリダイレクト
-        window.location.href = '/admin';
-        
+      // Firebase Authenticationでログイン
+      const result = await loginWithEmail(formData.email, formData.password);
+      
+      if (result.success) {
+        // ログイン成功
+        login(result.user);
+        navigate('/admin');
       } else {
-        // 認証失敗
-        console.log('認証失敗');
-        setLoginError('ログインIDまたはパスワードが間違っています');
-        setIsLoading(false);
+        setError(result.error || 'ログインに失敗しました');
       }
     } catch (error) {
-      console.error('ログインエラー:', error);
-      setLoginError('ログイン処理中にエラーが発生しました');
-      setIsLoading(false);
+      console.error('Login error:', error);
+      setError('ログインエラーが発生しました');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">
-            予約管理システム
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             管理者ログイン
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            管理機能にアクセスするにはログインが必要です
           </p>
         </div>
-      </div>
-
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow-lg sm:rounded-lg sm:px-10">
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            {/* エラー表示 */}
-            {loginError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                <p className="text-red-700 text-sm">{loginError}</p>
-              </div>
-            )}
-
+        
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <div className="rounded-md shadow-sm -space-y-px">
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                ログインID
+              <label htmlFor="email" className="sr-only">
+                メールアドレス
               </label>
-              <div className="mt-1">
-                <input
-                  type="text"
-                  {...register('loginId', {
-                    required: 'ログインIDを入力してください'
-                  })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="test@example.com"
-                />
-                {errors.loginId && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.loginId.message}
-                  </p>
-                )}
-              </div>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="メールアドレス"
+                value={formData.email}
+                onChange={handleInputChange}
+              />
             </div>
-
             <div>
-              <label className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="sr-only">
                 パスワード
               </label>
-              <div className="mt-1 relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  {...register('password', {
-                    required: 'パスワードを入力してください'
-                  })}
-                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
-                >
-                  {showPassword ? (
-                    <EyeSlashIcon className="h-5 w-5 text-gray-400" />
-                  ) : (
-                    <EyeIcon className="h-5 w-5 text-gray-400" />
-                  )}
-                </button>
-                {errors.password && (
-                  <p className="text-red-500 text-xs mt-1">
-                    {errors.password.message}
-                  </p>
-                )}
-              </div>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="パスワード"
+                value={formData.password}
+                onChange={handleInputChange}
+              />
             </div>
+          </div>
 
-            <div>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isLoading ? 'ログイン中...' : 'ログイン'}
-              </button>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md">
+              {error}
             </div>
-          </form>
-        </div>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed"
+            >
+              {loading ? 'ログイン中...' : 'ログイン'}
+            </button>
+          </div>
+
+          <div className="text-sm text-center">
+            <p className="text-gray-600">
+              初回ログイン時は管理者アカウントを作成してください
+            </p>
+          </div>
+        </form>
       </div>
     </div>
   );
-};
-
-export default AdminLogin; 
+} 

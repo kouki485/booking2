@@ -6,7 +6,7 @@ import * as nodemailer from 'nodemailer';
 admin.initializeApp();
 
 // Gmail SMTP設定
-const gmailTransporter = nodemailer.createTransporter({
+const gmailTransporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
     user: functions.config().email?.user || 'mwd3145@gmail.com',
@@ -143,13 +143,14 @@ export const sendBookingNotification = functions.firestore
       return { success: true, messageId: info.messageId };
       
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       functions.logger.error('予約通知メール送信エラー', {
         bookingId: context.params.bookingId,
-        error: error.message
+        error: errorMessage
       });
       
       // エラーが発生してもFirestore操作は成功させる
-      return { success: false, error: error.message };
+      return { success: false, error: errorMessage };
     }
   });
 
@@ -273,12 +274,13 @@ export const sendBookingCancelNotification = functions.firestore
       return { success: true, messageId: info.messageId };
       
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
       functions.logger.error('予約キャンセル通知メール送信エラー', {
         bookingId: context.params.bookingId,
-        error: error.message
+        error: errorMessage
       });
       
-      return { success: false, error: error.message };
+      return { success: false, error: errorMessage };
     }
   });
 
@@ -323,11 +325,12 @@ export const testEmailConfiguration = functions.https.onRequest(async (req, res)
     });
     
   } catch (error) {
-    functions.logger.error('テストメール送信エラー', { error: error.message });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    functions.logger.error('テストメール送信エラー', { error: errorMessage });
     
     res.status(500).json({
       success: false,
-      error: error.message
+      error: errorMessage
     });
   }
 }); 

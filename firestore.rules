@@ -2,10 +2,51 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // 開発段階のため、一時的にすべてのアクセスを許可
-    // 本番運用時は適切なセキュリティルールに変更してください
+    // 予約データの保護
+    match /bookings/{bookingId} {
+      // 誰でも予約作成と予約数確認（読み取り）は可能
+      allow create: if validateBookingData(resource.data);
+      allow read: if true;
+      
+      // 削除と更新は認証済みユーザー（管理者）のみ
+      allow delete, update: if isAuthenticatedAdmin();
+    }
+    
+    // 設定データの保護
+    match /settings/{settingId} {
+      // 設定の読み取りは誰でも可能（営業時間確認等）
+      allow read: if true;
+      
+      // 設定の変更は認証済み管理者のみ
+      allow write: if isAuthenticatedAdmin();
+    }
+    
+    // 管理者情報の保護
+    match /admins/{adminId} {
+      // 完全に管理者のみアクセス可能
+      allow read, write: if isAuthenticatedAdmin() && resource.id == request.auth.uid;
+    }
+    
+    // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
+    }
+    
+    // ヘルパー関数
+    function isAuthenticatedAdmin() {
+      return request.auth != null && 
+             request.auth.uid != null && 
+             request.auth.token.email_verified == true;
+    }
+    
+    function validateBookingData(data) {
+      return data.keys().hasAll(['date', 'time', 'customerName']) &&
+             data.customerName is string &&
+             data.customerName.size() > 0 &&
+             data.customerName.size() <= 50 &&
+             data.date is string &&
+             data.time is string &&
+             data.status == 'confirmed';
     }
   }
 } 
