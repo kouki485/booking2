@@ -5,7 +5,7 @@ service cloud.firestore {
     // 予約データの保護
     match /bookings/{bookingId} {
       // 誰でも予約作成と予約数確認（読み取り）は可能
-      allow create: if validateBookingData(resource.data);
+      allow create: if validateBookingData(request.resource.data);
       allow read: if true;
       
       // 削除と更新は認証済みユーザー（管理者）のみ

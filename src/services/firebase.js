@@ -5,12 +5,13 @@ import { getFunctions, connectFunctionsEmulator } from 'firebase/functions';
 
 // Firebase設定（環境変数またはデフォルト値を使用）
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyB7oGzRBXD3BEtTaGjTwEO3IDMJY0cqSPc",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyBmQRFG7eGXcP0qRbcKRPc6uEeuPk5Ajp4",
   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "booking-5a17b.firebaseapp.com",
   projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "booking-5a17b",
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "booking-5a17b.appspot.com",
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "423059549651",
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:423059549651:web:3a8d0c8e1dd1c945c1d9b5"
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "booking-5a17b.firebasestorage.app",
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "1006309665015",
+  appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:1006309665015:web:fd2f1bb60bffa2e1970bf2",
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-WJ8X8VX1GK"
 };
 
 // Firebase初期化
