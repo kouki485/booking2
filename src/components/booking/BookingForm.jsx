@@ -595,7 +595,7 @@ const BookingForm = () => {
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 sm:space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    お名前 <span className="text-red-500">*</span>
+                    ご登録して頂いたお名前をフルネームで入力してください<span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
