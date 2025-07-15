@@ -26,7 +26,7 @@ const BookingForm = () => {
   const [userBookings, setUserBookings] = useState([]);
   const [slotStatuses, setSlotStatuses] = useState({});
 
-  const { addBooking, loading, error, clearError, checkSlotBookable, getSlotStatuses } = useBookings();
+  const { addBooking, loading, error, clearError, checkSlotBookable, getSlotStatuses, getBookingCountsBatch } = useBookings();
   
   const { 
     register, 
@@ -66,7 +66,6 @@ const BookingForm = () => {
 
   // 予約数を取得・更新する関数
   const loadBookingCounts = async (weekDates = null) => {
-    const counts = {};
     const currentWeekDates = weekDates || generateWeekDates(currentWeek);
     
     // 管理者の設定も一緒に読み込み
@@ -74,10 +73,46 @@ const BookingForm = () => {
     const endDate = formatDateForSaving(currentWeekDates[6]);
     
     try {
+      // 管理者設定と予約数を並列で取得
+      const [adminStatuses, bookingCounts] = await Promise.all([
+        getSlotStatuses(startDate, endDate),
+        getBookingCountsBatch ? getBookingCountsBatch(startDate, endDate) : Promise.resolve({})
+      ]);
+      
+      setSlotStatuses(adminStatuses);
+      
+      // 予約数を日付・時間別に整理
+      const counts = {};
+      for (const date of currentWeekDates) {
+        const dateStr = formatDateForSaving(date);
+        counts[dateStr] = {};
+        
+        for (const time of timeSlots) {
+          const slotKey = `${dateStr}_${time}`;
+          counts[dateStr][time] = bookingCounts[slotKey] || 0;
+        }
+      }
+      
+      setBookingCounts(counts);
+    } catch (error) {
+      console.error('データ取得エラー:', error);
+      // エラー時は個別取得にフォールバック
+      await loadBookingCountsFallback(currentWeekDates);
+    }
+  };
+
+  // フォールバック用の個別取得関数
+  const loadBookingCountsFallback = async (currentWeekDates) => {
+    const counts = {};
+    
+    try {
+      const startDate = formatDateForSaving(currentWeekDates[0]);
+      const endDate = formatDateForSaving(currentWeekDates[6]);
       const adminStatuses = await getSlotStatuses(startDate, endDate);
       setSlotStatuses(adminStatuses);
     } catch (error) {
       console.error('管理者設定取得エラー:', error);
+      setSlotStatuses({});
     }
     
     for (const date of currentWeekDates) {
@@ -134,7 +169,7 @@ const BookingForm = () => {
 
     if (isNotBookable) {
       return {
-        icon: <XMarkIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />,
+        icon: <span className="text-gray-600 font-bold text-lg">×</span>,
         bgColor: 'bg-gray-100',
         disabled: true
       };
@@ -142,8 +177,8 @@ const BookingForm = () => {
 
     if (isSelected) {
       return {
-        icon: <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-500 rounded-full"></div>,
-        bgColor: 'bg-green-500',
+        icon: <div className="w-3 h-3 sm:w-4 sm:h-4 bg-green-500 rounded-full border-2 border-white"></div>,
+        bgColor: 'bg-green-100 border-2 border-green-500',
         disabled: false
       };
     }
@@ -160,7 +195,7 @@ const BookingForm = () => {
     switch (remaining) {
       case 0:
         return {
-          icon: <XMarkIcon className="w-3 h-3 sm:w-4 sm:h-4 text-red-600" />,
+          icon: <span className="text-red-600 font-bold text-lg">×</span>,
           bgColor: 'bg-red-100',
           disabled: true
         };
@@ -587,20 +622,8 @@ const BookingForm = () => {
                   <span className="text-gray-600">残り1枠</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <XMarkIcon className="w-4 h-4 text-red-600" />
-                  <span className="text-gray-600">満席</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <XMarkIcon className="w-4 h-4 text-gray-400" />
-                  <span className="text-gray-600">予約不可</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-yellow-600 font-bold text-lg">△</span>
-                  <span className="text-gray-600">一部制限</span>
-                </div>
-                <div className="flex items-center gap-2">
                   <span className="text-red-600 font-bold text-lg">×</span>
-                  <span className="text-gray-600">利用不可</span>
+                  <span className="text-gray-600">予約不可</span>
                 </div>
               </div>
             </div>

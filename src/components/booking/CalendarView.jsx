@@ -135,7 +135,7 @@ const CalendarView = ({
     let baseClasses = 'calendar-cell text-xs font-medium transition-all duration-200 relative';
     
     if (isSelected) {
-      baseClasses += ' ring-2 ring-salon-500 bg-salon-500 text-white';
+      baseClasses += ' ring-2 ring-green-500 bg-green-100 text-gray-900';
     } else {
       switch (status) {
         case 'available':
@@ -290,18 +290,6 @@ const CalendarView = ({
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
             <span className="text-gray-600">一部空き</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-            <span className="text-gray-600">満席</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-            <span className="text-gray-600">利用不可</span>
-          </div>
-          <div className="flex items-center gap-2">
-                            <span className="text-yellow-600 font-bold text-lg">△</span>
-            <span className="text-gray-600">一部制限</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-red-600 font-bold text-lg">×</span>

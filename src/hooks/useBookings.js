@@ -15,7 +15,9 @@ import {
   getTimeSlotStatus,
   updateTimeSlotStatus,
   getTimeSlotStatuses,
-  isTimeSlotBookable
+  isTimeSlotBookable,
+  getBookingCountsByDateRange,
+  getBookingStatusesByDateRange
 } from '../services/bookingService';
 import { useAuth } from './useAuth'; // 追加
 
@@ -256,6 +258,28 @@ export const useBookings = () => {
     }
   }, []);
 
+  // 指定期間の予約数を一括取得
+  const getBookingCountsBatch = useCallback(async (startDate, endDate) => {
+    try {
+      const counts = await getBookingCountsByDateRange(startDate, endDate);
+      return counts;
+    } catch (error) {
+      console.error('一括予約数取得エラー:', error);
+      return {};
+    }
+  }, []);
+
+  // 指定期間の予約状況を一括取得
+  const getBookingStatusesBatch = useCallback(async (startDate, endDate, timeSlots) => {
+    try {
+      const statuses = await getBookingStatusesByDateRange(startDate, endDate, timeSlots, 3);
+      return statuses;
+    } catch (error) {
+      console.error('一括予約状況取得エラー:', error);
+      return {};
+    }
+  }, []);
+
   // 初期化時に対応可能時間を取得
   useEffect(() => {
     fetchAvailableHours();
@@ -333,7 +357,9 @@ export const useBookings = () => {
     updateSlotStatus,
     getSlotStatuses,
     checkSlotBookable,
-    clearError: () => setError(null)
+    clearError: () => setError(null),
+    getBookingCountsBatch,
+    getBookingStatusesBatch
   };
 };
 

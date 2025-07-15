@@ -736,6 +736,83 @@ export const checkIPAddressBookingLimit = async (clientId, maxBookingsPerIP = 2)
   }
 };
 
+/**
+ * 指定期間の予約を一括取得して時間枠別に集計
+ */
+export const getBookingCountsByDateRange = async (startDate, endDate) => {
+  try {
+    // 入力データ検証
+    if (!startDate || !endDate || typeof startDate !== 'string' || typeof endDate !== 'string') {
+      console.warn('getBookingCountsByDateRange: 無効なパラメータ', { startDate, endDate });
+      return {};
+    }
+
+    // 期間内の全予約を一括取得（statusフィルターを後でクライアントサイドで適用）
+    const q = query(
+      collection(db, 'bookings'),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    );
+
+    const querySnapshot = await getDocs(q);
+    const counts = {};
+
+    // 各予約をカウント（confirmedのみ）
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const { date, time, status } = data;
+      
+      // confirmedの予約のみカウント
+      if (date && time && (status === 'confirmed' || !status)) {
+        const slotKey = `${date}_${time}`;
+        counts[slotKey] = (counts[slotKey] || 0) + 1;
+      }
+    });
+
+    return counts;
+  } catch (error) {
+    console.error('期間別予約数取得エラー:', error);
+    return {};
+  }
+};
+
+/**
+ * 指定期間の予約状況を一括取得（available/partial/full/disabled）
+ */
+export const getBookingStatusesByDateRange = async (startDate, endDate, timeSlots, maxCapacity = 3) => {
+  try {
+    // 予約数を一括取得
+    const counts = await getBookingCountsByDateRange(startDate, endDate);
+    const statuses = {};
+
+    // 日付範囲を生成
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+      const dateStr = date.toISOString().split('T')[0];
+      
+      timeSlots.forEach(time => {
+        const slotKey = `${dateStr}_${time}`;
+        const count = counts[slotKey] || 0;
+        
+        if (count >= maxCapacity) {
+          statuses[slotKey] = 'full';
+        } else if (count > 0) {
+          statuses[slotKey] = 'partial';
+        } else {
+          statuses[slotKey] = 'available';
+        }
+      });
+    }
+
+    return statuses;
+  } catch (error) {
+    console.error('期間別予約状況取得エラー:', error);
+    return {};
+  }
+};
+
 // 時間スロットを生成する関数
 export const generateTimeSlots = (startTime, endTime, intervalMinutes = 30) => {
   const slots = [];

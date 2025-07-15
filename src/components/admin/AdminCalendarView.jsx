@@ -375,7 +375,7 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
             <span className="text-gray-600">利用可能</span>
           </div>
           <div className="flex items-center gap-2">
-                            <span className="text-yellow-600 font-bold text-lg">△</span>
+            <span className="text-yellow-600 font-bold text-lg">△</span>
             <span className="text-gray-600">一部制限</span>
           </div>
           <div className="flex items-center gap-2">
