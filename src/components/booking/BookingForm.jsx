@@ -24,8 +24,9 @@ const BookingForm = () => {
   const [bookingCounts, setBookingCounts] = useState({});
   const [showHistory, setShowHistory] = useState(false);
   const [userBookings, setUserBookings] = useState([]);
+  const [slotStatuses, setSlotStatuses] = useState({});
 
-  const { addBooking, loading, error, clearError } = useBookings();
+  const { addBooking, loading, error, clearError, checkSlotBookable, getSlotStatuses } = useBookings();
   
   const { 
     register, 
@@ -68,6 +69,17 @@ const BookingForm = () => {
     const counts = {};
     const currentWeekDates = weekDates || generateWeekDates(currentWeek);
     
+    // 管理者の設定も一緒に読み込み
+    const startDate = formatDateForSaving(currentWeekDates[0]);
+    const endDate = formatDateForSaving(currentWeekDates[6]);
+    
+    try {
+      const adminStatuses = await getSlotStatuses(startDate, endDate);
+      setSlotStatuses(adminStatuses);
+    } catch (error) {
+      console.error('管理者設定取得エラー:', error);
+    }
+    
     for (const date of currentWeekDates) {
       const dateStr = formatDateForSaving(date);
       counts[dateStr] = {};
@@ -106,6 +118,20 @@ const BookingForm = () => {
                      selectedDate.toDateString() === date.toDateString() && 
                      selectedTime === time;
 
+    // 管理者の設定を確認
+    const dateStr = formatDateForSaving(date);
+    const slotId = `${dateStr}_${time}`;
+    const adminStatus = slotStatuses[slotId];
+
+    // 管理者が利用不可に設定した場合
+    if (adminStatus === 'unavailable') {
+      return {
+        icon: <span className="text-red-600 font-bold text-lg">×</span>,
+        bgColor: 'bg-red-100',
+        disabled: true
+      };
+    }
+
     if (isNotBookable) {
       return {
         icon: <XMarkIcon className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400" />,
@@ -122,6 +148,15 @@ const BookingForm = () => {
       };
     }
 
+    // 管理者が一部制限に設定した場合
+    if (adminStatus === 'partial') {
+      return {
+        icon: <span className="text-yellow-600 font-bold text-lg">△</span>,
+        bgColor: 'bg-yellow-100 hover:bg-yellow-200',
+        disabled: false
+      };
+    }
+
     switch (remaining) {
       case 0:
         return {
@@ -131,10 +166,7 @@ const BookingForm = () => {
         };
       case 1:
         return {
-          icon: (
-            <div className="w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-b-[6px] border-b-yellow-600">
-            </div>
-          ),
+          icon: <span className="text-yellow-600 font-bold text-lg">△</span>,
           bgColor: 'bg-yellow-100 hover:bg-yellow-200',
           disabled: false
         };
@@ -191,12 +223,19 @@ const BookingForm = () => {
   };
 
   // 時間スロットクリックハンドラ
-  const handleTimeSlotClick = (date, time) => {
+  const handleTimeSlotClick = async (date, time) => {
     const remaining = getRemainingSlots(date, time);
     const isNotBookable = !isBookableTime(date, time);
     
     if (isNotBookable || remaining === 0) {
       return; // 予約不可または満席の場合は何もしない
+    }
+
+    // 管理者が設定した状態を確認
+    const dateStr = date.toISOString().split('T')[0];
+    const isBookable = await checkSlotBookable(dateStr, time);
+    if (!isBookable) {
+      return; // 管理者が利用不可に設定した場合は何もしない
     }
 
     setSelectedDate(date);
@@ -238,7 +277,13 @@ const BookingForm = () => {
       customerName: data.customerName.trim()
     };
 
-
+    // 管理者が設定した状態を最終確認
+    const isBookable = await checkSlotBookable(bookingData.date, bookingData.time);
+    if (!isBookable) {
+      setIsSubmitting(false);
+      alert('申し訳ございません。この時間帯は現在予約を受け付けておりません。');
+      return;
+    }
 
     try {
       const result = await addBooking(bookingData);
@@ -538,8 +583,8 @@ const BookingForm = () => {
                   <span className="text-gray-600">空き（2-3枠）</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-0 h-0 border-l-[3px] border-l-transparent border-r-[3px] border-r-transparent border-b-[5px] border-b-yellow-600"></div>
-                  <span className="text-gray-600 ml-1">残り1枠</span>
+                  <span className="text-yellow-600 font-bold text-lg">△</span>
+                  <span className="text-gray-600">残り1枠</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <XMarkIcon className="w-4 h-4 text-red-600" />
@@ -548,6 +593,14 @@ const BookingForm = () => {
                 <div className="flex items-center gap-2">
                   <XMarkIcon className="w-4 h-4 text-gray-400" />
                   <span className="text-gray-600">予約不可</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-yellow-600 font-bold text-lg">△</span>
+                  <span className="text-gray-600">一部制限</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-red-600 font-bold text-lg">×</span>
+                  <span className="text-gray-600">利用不可</span>
                 </div>
               </div>
             </div>

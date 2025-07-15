@@ -27,6 +27,15 @@ service cloud.firestore {
       allow read, write: if isAuthenticatedAdmin() && resource.id == request.auth.uid;
     }
     
+    // 時間枠状態の管理
+    match /timeSlotStatus/{slotId} {
+      // 読み取りは誰でも可能（予約可否判定のため）
+      allow read: if true;
+      
+      // 作成・更新・削除は認証済み管理者のみ
+      allow create, update, delete: if isAuthenticatedAdmin() && validateTimeSlotData(request.resource.data);
+    }
+    
     // その他のドキュメントはデフォルトで拒否
     match /{document=**} {
       allow read, write: if false;
@@ -56,6 +65,17 @@ service cloud.firestore {
              data.date is string &&
              data.time is string &&
              data.status == 'confirmed';
+    }
+    
+    function validateTimeSlotData(data) {
+      return data.keys().hasAll(['status', 'date', 'time']) &&
+             data.status is string &&
+             data.status in ['available', 'partial', 'unavailable'] &&
+             data.date is string &&
+             data.time is string &&
+             data.updatedAt is string &&
+             data.updatedBy is string &&
+             data.updatedByEmail is string;
     }
   }
 } 

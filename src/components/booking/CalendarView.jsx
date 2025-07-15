@@ -23,7 +23,8 @@ const CalendarView = ({
 }) => {
   const [currentWeekStart, setCurrentWeekStart] = useState(new Date());
   const [timeSlotBookings, setTimeSlotBookings] = useState({});
-  const { businessHours, getBookingStatus, generateTimeSlots } = useBookings();
+  const [slotStatuses, setSlotStatuses] = useState({});
+  const { businessHours, getBookingStatus, generateTimeSlots, getSlotStatuses, checkSlotBookable } = useBookings();
 
   // 現在の週の日付配列を生成
   const weekDates = useMemo(() => {
@@ -50,24 +51,42 @@ const CalendarView = ({
     return generateTimeSlots(earliestOpen, latestClose);
   }, [businessHours, generateTimeSlots]);
 
-  // 各時間枠の予約状況を取得
+  // 各時間枠の予約状況と状態を取得
   useEffect(() => {
     if (!timeSlots.length || !weekDates.length) return;
 
     const loadBookingStatuses = async () => {
       const statusMap = {};
+      const startDate = formatDateString(weekDates[0]);
+      const endDate = formatDateString(weekDates[weekDates.length - 1]);
+      
+      // 時間枠状態を一括取得
+      const fetchedStatuses = await getSlotStatuses(startDate, endDate);
+      setSlotStatuses(fetchedStatuses);
       
       for (const date of weekDates) {
         const dateStr = formatDateString(date);
         statusMap[dateStr] = {};
         
         for (const time of timeSlots) {
-          if (isBusinessDay(date, businessHours || {}) && 
+          // 管理者が設定した状態を確認
+          const slotId = `${dateStr}_${time}`;
+          const adminStatus = fetchedStatuses[slotId];
+          
+          if (adminStatus === 'unavailable') {
+            statusMap[dateStr][time] = 'disabled';
+          } else if (isBusinessDay(date, businessHours || {}) && 
               isBookableDate(date) && 
               isBookableTime(date, time) &&
               isWithinBusinessHours(date, time, businessHours || {})) {
             const status = await getBookingStatus(date, time);
-            statusMap[dateStr][time] = status;
+            
+            // 管理者が一部制限に設定した場合、予約状況に関係なく制限表示
+            if (adminStatus === 'partial') {
+              statusMap[dateStr][time] = 'partial';
+            } else {
+              statusMap[dateStr][time] = status;
+            }
           } else {
             statusMap[dateStr][time] = 'disabled';
           }
@@ -78,7 +97,7 @@ const CalendarView = ({
     };
 
     loadBookingStatuses();
-  }, [weekDates, timeSlots, businessHours, getBookingStatus]);
+  }, [weekDates, timeSlots, businessHours, getBookingStatus, getSlotStatuses]);
 
   // 週切り替え
   const goToPreviousWeek = () => {
@@ -90,11 +109,17 @@ const CalendarView = ({
   };
 
   // 日付・時間選択ハンドラ
-  const handleTimeSlotClick = (date, time) => {
+  const handleTimeSlotClick = async (date, time) => {
     const dateStr = formatDateString(date);
     const status = timeSlotBookings[dateStr]?.[time];
     
     if (status === 'disabled' || status === 'full') return;
+    
+    // 管理者が設定した状態を確認
+    const isBookable = await checkSlotBookable(dateStr, time);
+    if (!isBookable) {
+      return;
+    }
     
     onDateTimeSelect?.(date, time);
   };
@@ -214,22 +239,41 @@ const CalendarView = ({
                 </div>
                 
                 {/* 各日の時間枠 */}
-                {weekDates.map((date, dayIndex) => (
-                  <button
-                    key={`${formatDateString(date)}-${time}`}
-                    onClick={() => handleTimeSlotClick(date, time)}
-                    className={getTimeSlotClass(date, time)}
-                    disabled={
-                      timeSlotBookings[formatDateString(date)]?.[time] === 'disabled' ||
-                      timeSlotBookings[formatDateString(date)]?.[time] === 'full'
-                    }
-                  >
-                    <span className="sr-only">
-                      {formatDateString(date)} {time}
-                    </span>
-                    {getBookingCountDisplay(date, time)}
-                  </button>
-                ))}
+                {weekDates.map((date, dayIndex) => {
+                  const dateStr = formatDateString(date);
+                  const slotId = `${dateStr}_${time}`;
+                  const adminStatus = slotStatuses[slotId] || 'available';
+                  
+                  return (
+                    <div key={`${dateStr}-${time}`} className="relative">
+                      <button
+                        onClick={() => handleTimeSlotClick(date, time)}
+                        className={getTimeSlotClass(date, time)}
+                        disabled={
+                          timeSlotBookings[dateStr]?.[time] === 'disabled' ||
+                          timeSlotBookings[dateStr]?.[time] === 'full'
+                        }
+                      >
+                        <span className="sr-only">
+                          {dateStr} {time}
+                        </span>
+                        {getBookingCountDisplay(date, time)}
+                      </button>
+                      
+                                             {/* 管理者設定の記号を表示 */}
+                       {adminStatus && adminStatus !== 'available' && (
+                         <div className={`absolute top-0 right-0 w-6 h-6 flex items-center justify-center`}>
+                           {adminStatus === 'partial' ? 
+                             <span className="text-yellow-600 font-bold text-lg">△</span> : 
+                             adminStatus === 'unavailable' ? 
+                             <span className="text-red-600 font-bold text-lg">×</span> : 
+                             <span className="text-green-600 font-bold text-lg">⚪︎</span>
+                           }
+                         </div>
+                       )}
+                    </div>
+                  );
+                })}
               </div>
             ))}
           </div>
@@ -254,6 +298,14 @@ const CalendarView = ({
           <div className="flex items-center gap-2">
             <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
             <span className="text-gray-600">利用不可</span>
+          </div>
+          <div className="flex items-center gap-2">
+                            <span className="text-yellow-600 font-bold text-lg">△</span>
+            <span className="text-gray-600">一部制限</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-bold text-lg">×</span>
+            <span className="text-gray-600">予約不可</span>
           </div>
         </div>
       </div>

@@ -11,7 +11,11 @@ import {
   getBookingStats,
   generateTimeSlots,
   isAvailableDay,
-  isAvailableTime
+  isAvailableTime,
+  getTimeSlotStatus,
+  updateTimeSlotStatus,
+  getTimeSlotStatuses,
+  isTimeSlotBookable
 } from '../services/bookingService';
 import { useAuth } from './useAuth'; // 追加
 
@@ -257,6 +261,54 @@ export const useBookings = () => {
     fetchAvailableHours();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 時間枠状態を取得
+  const getSlotStatus = useCallback(async (date, time) => {
+    try {
+      const status = await getTimeSlotStatus(date, time);
+      return status;
+    } catch (error) {
+      console.error('時間枠状態取得エラー:', error);
+      return 'available';
+    }
+  }, []);
+
+  // 時間枠状態を更新
+  const updateSlotStatus = useCallback(async (date, time, status) => {
+    try {
+      if (!user) {
+        throw new Error('管理者権限が必要です');
+      }
+      
+      const result = await updateTimeSlotStatus(date, time, status, user);
+      return result;
+    } catch (error) {
+      console.error('時間枠状態更新エラー:', error);
+      throw error;
+    }
+  }, [user]);
+
+  // 複数の時間枠状態を一括取得
+  const getSlotStatuses = useCallback(async (startDate, endDate) => {
+    try {
+      const statuses = await getTimeSlotStatuses(startDate, endDate);
+      return statuses;
+    } catch (error) {
+      console.error('時間枠状態一括取得エラー:', error);
+      return {};
+    }
+  }, []);
+
+  // 時間枠の予約可否を判定
+  const checkSlotBookable = useCallback(async (date, time) => {
+    try {
+      const isBookable = await isTimeSlotBookable(date, time);
+      return isBookable;
+    } catch (error) {
+      console.error('時間枠予約可否判定エラー:', error);
+      return true;
+    }
+  }, []);
+
   return {
     bookings,
     availableHours,
@@ -276,6 +328,11 @@ export const useBookings = () => {
     checkAvailableTime,
     getBookingStatus,
     generateTimeSlots,
+    // 時間枠状態管理機能
+    getSlotStatus,
+    updateSlotStatus,
+    getSlotStatuses,
+    checkSlotBookable,
     clearError: () => setError(null)
   };
 };

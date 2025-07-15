@@ -17,8 +17,9 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedSlotBookings, setSelectedSlotBookings] = useState([]);
   const [selectedDateTime, setSelectedDateTime] = useState({ date: null, time: null });
+  const [slotStatuses, setSlotStatuses] = useState({});
 
-  const { fetchBookingsByDateRange } = useBookings();
+  const { fetchBookingsByDateRange, getSlotStatuses, updateSlotStatus } = useBookings();
 
   // 時間スロット（11:00-19:00）
   const timeSlots = [
@@ -87,7 +88,7 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     setCurrentWeek(newWeek);
   };
 
-  // 予約データを取得
+  // 予約データと時間枠状態を取得
   useEffect(() => {
     const loadBookings = async () => {
       setLoading(true);
@@ -95,10 +96,15 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
         const startDate = formatDateForComparison(weekDates[0]);
         const endDate = formatDateForComparison(weekDates[6]);
         
-        const fetchedBookings = await fetchBookingsByDateRange(startDate, endDate);
+        const [fetchedBookings, fetchedStatuses] = await Promise.all([
+          fetchBookingsByDateRange(startDate, endDate),
+          getSlotStatuses(startDate, endDate)
+        ]);
+        
         setBookings(fetchedBookings);
+        setSlotStatuses(fetchedStatuses);
       } catch (error) {
-        console.error('予約データの取得に失敗しました:', error);
+        console.error('データの取得に失敗しました:', error);
       } finally {
         setLoading(false);
       }
@@ -107,7 +113,7 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     if (weekDates.length > 0) {
       loadBookings();
     }
-  }, [currentWeek, fetchBookingsByDateRange]);
+  }, [currentWeek, fetchBookingsByDateRange, getSlotStatuses]);
 
   // 特定の日時の予約を全て取得（複数予約対応）
   const getBookingsForSlot = (date, time) => {
@@ -115,6 +121,90 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
     return bookings.filter(booking => 
       booking.date === dateStr && booking.time === time
     );
+  };
+
+  // 時間枠の状態を取得
+  const getSlotStatus = (date, time) => {
+    const dateStr = formatDateForComparison(date);
+    const slotId = `${dateStr}_${time}`;
+    return slotStatuses[slotId] || 'available';
+  };
+
+  // 記号を次の状態に切り替え
+  const getNextStatus = (currentStatus) => {
+    switch (currentStatus) {
+      case 'available':
+        return 'partial';
+      case 'partial':
+        return 'unavailable';
+      case 'unavailable':
+        return 'available';
+      default:
+        return 'available';
+    }
+  };
+
+  // 時間枠状態を更新
+  const handleSlotStatusChange = async (date, time, event) => {
+    event.stopPropagation();
+    
+    const dateStr = formatDateForComparison(date);
+    const currentStatus = getSlotStatus(date, time);
+    const nextStatus = getNextStatus(currentStatus);
+    
+    try {
+      await updateSlotStatus(dateStr, time, nextStatus);
+      
+      // ローカル状態を更新
+      const slotId = `${dateStr}_${time}`;
+      setSlotStatuses(prev => ({
+        ...prev,
+        [slotId]: nextStatus
+      }));
+    } catch (error) {
+      console.error('時間枠状態の更新に失敗しました:', error);
+    }
+  };
+
+  // 記号を表示
+  const getStatusSymbol = (status) => {
+    switch (status) {
+      case 'available':
+        return <span className="text-green-600 font-bold text-lg">⚪︎</span>;
+      case 'partial':
+        return <span className="text-yellow-600 font-bold text-lg">△</span>;
+      case 'unavailable':
+        return <span className="text-red-600 font-bold text-lg">×</span>;
+      default:
+        return <span className="text-green-600 font-bold text-lg">⚪︎</span>;
+    }
+  };
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case 'available':
+        return '⚪︎';
+      case 'partial':
+        return '△';
+      case 'unavailable':
+        return '×';
+      default:
+        return '⚪︎';
+    }
+  };
+
+  // 記号の色を取得
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'available':
+        return 'text-green-600';
+      case 'partial':
+        return 'text-yellow-600';
+      case 'unavailable':
+        return 'text-red-600';
+      default:
+        return 'text-green-600';
+    }
   };
 
   // 時間スロットのクリックハンドラ
@@ -219,38 +309,49 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
               </div>
               {weekDates.map((date, dateIndex) => {
                 const slotBookings = getBookingsForSlot(date, time);
+                const slotStatus = getSlotStatus(date, time);
                 
                 return (
-                  <button
-                    key={`${dateIndex}-${timeIndex}`}
-                    onClick={() => handleTimeSlotClick(date, time)}
-                    className={`p-2 border-r border-gray-200 last:border-r-0 min-h-[48px] flex items-center justify-center text-xs ${
-                      slotBookings.length > 0
-                        ? 'bg-blue-100 hover:bg-blue-200 text-blue-800 cursor-pointer' 
-                        : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    {slotBookings.length > 0 ? (
-                      <div className="text-center w-full">
-                        {slotBookings.length === 1 ? (
-                          <div className="font-medium">{slotBookings[0].customerName}</div>
-                        ) : (
-                          <div>
-                            <div className="font-medium text-[10px]">
-                              {slotBookings[0].customerName}
-                            </div>
-                            {slotBookings.length > 1 && (
-                              <div className="text-[10px] mt-1">
-                                +{slotBookings.length - 1}件
+                  <div key={`${dateIndex}-${timeIndex}`} className="relative">
+                    <button
+                      onClick={() => handleTimeSlotClick(date, time)}
+                      className={`p-2 border-r border-gray-200 last:border-r-0 min-h-[48px] flex items-center justify-center text-xs w-full ${
+                        slotBookings.length > 0
+                          ? 'bg-blue-100 hover:bg-blue-200 text-blue-800 cursor-pointer' 
+                          : 'hover:bg-gray-50'
+                      }`}
+                    >
+                      {slotBookings.length > 0 ? (
+                        <div className="text-center w-full">
+                          {slotBookings.length === 1 ? (
+                            <div className="font-medium">{slotBookings[0].customerName}</div>
+                          ) : (
+                            <div>
+                              <div className="font-medium text-[10px]">
+                                {slotBookings[0].customerName}
                               </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="w-6 h-6 rounded-full border-2 border-gray-300"></div>
-                    )}
-                  </button>
+                              {slotBookings.length > 1 && (
+                                <div className="text-[10px] mt-1">
+                                  +{slotBookings.length - 1}件
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="w-6 h-6 rounded-full border-2 border-gray-300"></div>
+                      )}
+                    </button>
+                    
+                    {/* 記号表示・編集ボタン */}
+                    <button
+                      onClick={(e) => handleSlotStatusChange(date, time, e)}
+                      className={`absolute top-0 right-0 w-6 h-6 text-lg font-bold hover:scale-110 transition-transform ${getStatusColor(slotStatus)}`}
+                      title={`クリックで状態を変更: ${getStatusText(slotStatus)}`}
+                    >
+                      {getStatusSymbol(slotStatus)}
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -270,7 +371,19 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
             <span className="text-gray-600">空き</span>
           </div>
           <div className="flex items-center gap-2">
-            <div className="text-xs text-gray-600">複数予約の場合「+件数」で表示</div>
+            <span className="text-green-600 font-bold">⚪︎</span>
+            <span className="text-gray-600">利用可能</span>
+          </div>
+          <div className="flex items-center gap-2">
+                            <span className="text-yellow-600 font-bold text-lg">△</span>
+            <span className="text-gray-600">一部制限</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-red-600 font-bold text-lg">×</span>
+            <span className="text-gray-600">利用不可</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-gray-600">記号をクリックで状態を変更</div>
           </div>
         </div>
       </div>

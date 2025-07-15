@@ -9,7 +9,8 @@ import {
   orderBy,
   writeBatch,
   getDoc,
-  updateDoc
+  updateDoc,
+  setDoc
 } from 'firebase/firestore';
 import { db, auth } from './firebase';
 import { validateCustomerName, sanitizeString } from '../utils/validation';
@@ -93,6 +94,12 @@ export const createBooking = async (bookingData) => {
       throw new Error(nameValidation.errors[0]);
     }
     
+    // 管理者の設定を確認
+    const isBookable = await isTimeSlotBookable(sanitizedData.date, sanitizedData.time);
+    if (!isBookable) {
+      throw new Error('申し訳ございませんが、この時間枠は現在予約を受け付けておりません。');
+    }
+
     // 既存の予約数をチェック（容量制限）
     const timeSlotQuery = query(
       collection(db, 'bookings'),
@@ -778,4 +785,135 @@ export const isAvailableTime = (time, date, availableHours) => {
   }
   
   return time >= dayInfo.start && time <= dayInfo.end;
+};
+
+/**
+ * 時間枠状態を取得
+ * @param {string} date - 日付 (YYYY-MM-DD)
+ * @param {string} time - 時間 (HH:MM)
+ * @returns {Promise<string>} 'available' | 'partial' | 'unavailable'
+ */
+export const getTimeSlotStatus = async (date, time) => {
+  try {
+    const slotId = `${date}_${time}`;
+    const slotRef = doc(db, 'timeSlotStatus', slotId);
+    const slotDoc = await getDoc(slotRef);
+    
+    if (slotDoc.exists()) {
+      return slotDoc.data().status || 'available';
+    } else {
+      return 'available'; // デフォルト状態
+    }
+  } catch (error) {
+    console.error('時間枠状態取得エラー:', error);
+    return 'available'; // エラー時はデフォルト状態を返す
+  }
+};
+
+/**
+ * 時間枠状態を更新
+ * @param {string} date - 日付 (YYYY-MM-DD)
+ * @param {string} time - 時間 (HH:MM)
+ * @param {string} status - 状態 ('available' | 'partial' | 'unavailable')
+ * @param {Object} adminUser - 管理者ユーザー情報
+ * @returns {Promise<Object>} 更新結果
+ */
+export const updateTimeSlotStatus = async (date, time, status, adminUser) => {
+  try {
+    if (!adminUser) {
+      throw new Error('管理者権限が必要です');
+    }
+    
+    // 状態値の検証
+    const validStatuses = ['available', 'partial', 'unavailable'];
+    if (!validStatuses.includes(status)) {
+      throw new Error('無効な状態値です');
+    }
+    
+    const slotId = `${date}_${time}`;
+    const slotRef = doc(db, 'timeSlotStatus', slotId);
+    
+    const slotData = {
+      status,
+      date,
+      time,
+      updatedAt: new Date().toISOString(),
+      updatedBy: adminUser.uid,
+      updatedByEmail: adminUser.email
+    };
+    
+    // ドキュメントが存在しない場合は作成、存在する場合は更新
+    await updateDoc(slotRef, slotData).catch(async (error) => {
+      if (error.code === 'not-found') {
+        // ドキュメントが存在しない場合は作成
+        await setDoc(slotRef, {
+          ...slotData,
+          createdAt: new Date().toISOString()
+        });
+      } else {
+        throw error;
+      }
+    });
+    
+    // セキュリティログ
+    logSecurityEvent('time_slot_status_updated', {
+      slotId,
+      date,
+      time,
+      status,
+      adminId: adminUser.uid,
+      adminEmail: adminUser.email
+    });
+    
+    return { success: true, slotId, status };
+  } catch (error) {
+    console.error('時間枠状態更新エラー:', error);
+    throw error;
+  }
+};
+
+/**
+ * 複数の時間枠状態を一括取得
+ * @param {string} startDate - 開始日付 (YYYY-MM-DD)
+ * @param {string} endDate - 終了日付 (YYYY-MM-DD)
+ * @returns {Promise<Object>} 時間枠状態の辞書 {`${date}_${time}`: status}
+ */
+export const getTimeSlotStatuses = async (startDate, endDate) => {
+  try {
+    const q = query(
+      collection(db, 'timeSlotStatus'),
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const statuses = {};
+    
+    querySnapshot.forEach((doc) => {
+      const data = doc.data();
+      const slotId = `${data.date}_${data.time}`;
+      statuses[slotId] = data.status;
+    });
+    
+    return statuses;
+  } catch (error) {
+    console.error('時間枠状態一括取得エラー:', error);
+    return {};
+  }
+};
+
+/**
+ * 時間枠状態に基づいて予約可否を判定
+ * @param {string} date - 日付 (YYYY-MM-DD)
+ * @param {string} time - 時間 (HH:MM)
+ * @returns {Promise<boolean>} 予約可能かどうか
+ */
+export const isTimeSlotBookable = async (date, time) => {
+  try {
+    const status = await getTimeSlotStatus(date, time);
+    return status !== 'unavailable';
+  } catch (error) {
+    console.error('時間枠予約可否判定エラー:', error);
+    return true; // エラー時はデフォルトで予約可能とする
+  }
 }; 
