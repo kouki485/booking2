@@ -4,12 +4,14 @@ import { Tab } from '@headlessui/react';
 import { 
   CalendarDaysIcon, 
   UserGroupIcon,
-  TrashIcon
+  TrashIcon,
+  ArrowDownTrayIcon
 } from '@heroicons/react/24/outline';
 import AdminCalendarView from './AdminCalendarView';
 import { useBookings } from '../../hooks/useBookings';
 import { useAuth } from '../../hooks/useAuth';
 import { formatDate, getCurrentDate } from '../../hooks/useBookings';
+import { exportBookingsByDateRange } from '../../services/calendarExportService';
 
 function classNames(...classes) {
   return classes.filter(Boolean).join(' ');
@@ -22,6 +24,12 @@ const AdminDashboard = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
+  const [exportDateRange, setExportDateRange] = useState({
+    startDate: getCurrentDate(),
+    endDate: getCurrentDate()
+  });
   
   const { isAuthenticated, loading: authLoading } = useAuth();
   const navigate = useNavigate();
@@ -108,6 +116,70 @@ const AdminDashboard = () => {
   const handleDateTimeSelect = (date, time) => {
     setSelectedDate(date);
     // 管理者モードでは予約作成は行わない
+  };
+
+  // Googleカレンダーエクスポート処理
+  const handleCalendarExport = async (exportType = 'week') => {
+    try {
+      setIsExporting(true);
+      
+      let startDate, endDate;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (exportType === 'week') {
+        // 今週の予約をエクスポート
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - (today.getDay() + 6) % 7);
+        const endOfWeek = new Date(startOfWeek);
+        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        
+        startDate = formatDateForQuery(startOfWeek);
+        endDate = formatDateForQuery(endOfWeek);
+      } else if (exportType === 'month') {
+        // 今月の予約をエクスポート
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        
+        startDate = formatDateForQuery(startOfMonth);
+        endDate = formatDateForQuery(endOfMonth);
+      } else if (exportType === 'custom') {
+        // カスタム期間での予約をエクスポート
+        startDate = exportDateRange.startDate;
+        endDate = exportDateRange.endDate;
+      }
+      
+      const result = await exportBookingsByDateRange(
+        startDate,
+        endDate,
+        fetchBookingsByDateRange
+      );
+      
+      if (result.success) {
+        alert(`${result.count}件の予約をエクスポートしました。\nファイル名: ${result.filename}`);
+      }
+    } catch (error) {
+      console.error('エクスポートエラー:', error);
+      alert('エクスポートに失敗しました。もう一度お試しください。');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // 期間選択ダイアログの表示
+  const showDateRangeDialog = () => {
+    setShowDateRangePicker(true);
+  };
+
+  // 期間選択ダイアログの確認
+  const handleDateRangeConfirm = () => {
+    setShowDateRangePicker(false);
+    handleCalendarExport('custom');
+  };
+
+  // 期間選択ダイアログのキャンセル
+  const handleDateRangeCancel = () => {
+    setShowDateRangePicker(false);
   };
 
   // 予約削除の確認表示
@@ -334,12 +406,45 @@ const AdminDashboard = () => {
           <Tab.Panel>
             <div className="bg-white shadow rounded-lg">
               <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">
-                  予約一覧
-                </h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  現在の週の予約状況
-                </p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">
+                      予約一覧
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      現在の週の予約状況
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => handleCalendarExport('week')}
+                      disabled={isExporting}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                    >
+                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                      {isExporting ? '処理中...' : '今週'}
+                    </button>
+                    <button
+                      onClick={() => handleCalendarExport('month')}
+                      disabled={isExporting}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                    >
+                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                      {isExporting ? '処理中...' : '今月'}
+                    </button>
+                    <button
+                      onClick={showDateRangeDialog}
+                      disabled={isExporting}
+                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                    >
+                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                      期間選択
+                    </button>
+                    <div className="text-xs text-gray-500">
+                      Googleカレンダーエクスポート
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="overflow-hidden">
@@ -441,6 +546,63 @@ const AdminDashboard = () => {
                   {isDeleting ? '削除中...' : '削除する'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 期間選択ダイアログ */}
+      {showDateRangePicker && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-medium text-gray-900 mb-4">エクスポート期間を選択</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  開始日
+                </label>
+                <input
+                  type="date"
+                  value={exportDateRange.startDate}
+                  onChange={(e) => setExportDateRange({
+                    ...exportDateRange,
+                    startDate: e.target.value
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  終了日
+                </label>
+                <input
+                  type="date"
+                  value={exportDateRange.endDate}
+                  onChange={(e) => setExportDateRange({
+                    ...exportDateRange,
+                    endDate: e.target.value
+                  })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                onClick={handleDateRangeCancel}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleDateRangeConfirm}
+                disabled={isExporting}
+                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+              >
+                {isExporting ? '処理中...' : 'エクスポート'}
+              </button>
             </div>
           </div>
         </div>
