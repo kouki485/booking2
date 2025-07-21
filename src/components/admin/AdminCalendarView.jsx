@@ -324,11 +324,27 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
                       {slotBookings.length > 0 ? (
                         <div className="text-center w-full">
                           {slotBookings.length === 1 ? (
-                            <div className="font-medium">{slotBookings[0].customerName}</div>
+                            <div className="font-medium">
+                              {slotBookings[0].customerName}
+                              {(slotBookings[0].age || slotBookings[0].occupation) && (
+                                <div className="text-[9px] mt-1 text-gray-600">
+                                  ({slotBookings[0].age && `${slotBookings[0].age}歳`}
+                                  {slotBookings[0].age && slotBookings[0].occupation && ', '}
+                                  {slotBookings[0].occupation})
+                                </div>
+                              )}
+                            </div>
                           ) : (
                             <div>
                               <div className="font-medium text-[10px]">
                                 {slotBookings[0].customerName}
+                                {(slotBookings[0].age || slotBookings[0].occupation) && (
+                                  <span className="text-[8px] text-gray-600">
+                                    ({slotBookings[0].age && `${slotBookings[0].age}歳`}
+                                    {slotBookings[0].age && slotBookings[0].occupation && ', '}
+                                    {slotBookings[0].occupation})
+                                  </span>
+                                )}
                               </div>
                               {slotBookings.length > 1 && (
                                 <div className="text-[10px] mt-1">
@@ -424,13 +440,16 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
                 <div key={booking.id} className="p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium text-gray-900">{booking.customerName}</p>
-                      {booking.age && (
-                        <p className="text-sm text-gray-600">年齢: {booking.age}歳</p>
-                      )}
-                      {booking.occupation && (
-                        <p className="text-sm text-gray-600">職業: {booking.occupation}</p>
-                      )}
+                      <p className="font-medium text-gray-900">
+                        {booking.customerName}
+                        {(booking.age || booking.occupation) && (
+                          <span className="font-normal text-gray-600">
+                            ({booking.age && `${booking.age}歳`}
+                            {booking.age && booking.occupation && ', '}
+                            {booking.occupation})
+                          </span>
+                        )}
+                      </p>
                       <p className="text-sm text-gray-600">{booking.phone}</p>
                       {booking.email && (
                         <p className="text-sm text-gray-600">{booking.email}</p>

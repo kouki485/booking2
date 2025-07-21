@@ -474,17 +474,17 @@ const AdminDashboard = () => {
                               <div className="flex-1">
                                 <p className="text-sm font-medium text-gray-900">
                                   {booking.customerName}
+                                  {(booking.age || booking.occupation) && (
+                                    <span className="font-normal text-gray-600">
+                                      ({booking.age && `${booking.age}歳`}
+                                      {booking.age && booking.occupation && ', '}
+                                      {booking.occupation})
+                                    </span>
+                                  )}
                                 </p>
                                 <p className="text-sm text-gray-500">
                                   {formatDate(booking.date)} {booking.time}
                                 </p>
-                                {(booking.age || booking.occupation) && (
-                                  <p className="text-xs text-gray-400 mt-1">
-                                    {booking.age && `${booking.age}歳`}
-                                    {booking.age && booking.occupation && ' • '}
-                                    {booking.occupation && booking.occupation}
-                                  </p>
-                                )}
                               </div>
                             </div>
                           </div>
