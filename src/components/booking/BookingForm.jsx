@@ -142,7 +142,7 @@ const BookingForm = () => {
   const getRemainingSlots = (date, time) => {
     const dateStr = formatDateForSaving(date);
     const count = bookingCounts[dateStr]?.[time] || 0;
-    return Math.max(0, 3 - count); // 最大3枠
+    return Math.max(0, 2 - count); // 最大2枠
   };
 
   // 枠数に応じたアイコンとスタイルを取得
@@ -206,7 +206,6 @@ const BookingForm = () => {
           disabled: false
         };
       case 2:
-      case 3:
       default:
         return {
           icon: (
@@ -615,7 +614,7 @@ const BookingForm = () => {
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 rounded-full border-2 border-green-500 bg-green-50"></div>
-                  <span className="text-gray-600">空き（2-3枠）</span>
+                  <span className="text-gray-600">空き（2枠）</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="text-yellow-600 font-bold text-lg">△</span>

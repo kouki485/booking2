@@ -166,7 +166,7 @@ const CalendarView = ({
     
     return (
       <span className="absolute top-0 right-0 text-xs bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px]">
-        {status === 'partial' ? '1-2' : '3'}
+        {status === 'partial' ? '1' : '2'}
       </span>
     );
   };

@@ -106,7 +106,7 @@ export const useBookings = () => {
       
       // 予約数制限チェック
       const count = await getBookingCount(bookingData.date, bookingData.time);
-      if (count >= 3) {
+      if (count >= 2) {
         throw new Error('この時間帯は予約が満席です');
       }
       
@@ -186,10 +186,10 @@ export const useBookings = () => {
       
       for (const slot of allSlots) {
         const count = await getBookingCount(date, slot);
-        if (count < 3) {
+        if (count < 2) {
           availableSlots.push({
             time: slot,
-            available: 3 - count
+            available: 2 - count
           });
         }
       }
@@ -250,7 +250,7 @@ export const useBookings = () => {
       const count = await getBookingCount(dateStr, time);
       
       if (count === 0) return 'available';
-      if (count < 3) return 'partial';
+      if (count < 2) return 'partial';
       return 'full';
     } catch (error) {
       console.error('予約状況取得エラー:', error);
