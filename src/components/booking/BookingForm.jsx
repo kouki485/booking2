@@ -699,8 +699,8 @@ const BookingForm = () => {
                     type="number"
                     {...register('age', {
                       required: '年齢を入力してください',
-                      min: { value: 1, message: '正しい年齢を入力してください' },
-                      max: { value: 120, message: '正しい年齢を入力してください' }
+                      min: { value: 18, message: '18歳以上である必要があります' },
+                      max: { value: 90, message: '90歳以下である必要があります' }
                     })}
                     className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
                     placeholder="25"
@@ -716,15 +716,35 @@ const BookingForm = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     職業<span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
+                  <select
                     {...register('occupation', {
-                      required: '職業を入力してください',
-                      maxLength: { value: 30, message: '職業は30文字以内で入力してください' }
+                      required: '職業を選択してください'
                     })}
                     className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
-                    placeholder="会社員"
-                  />
+                  >
+                    <option value="">選択してください</option>
+                    <option value="会社員">会社員</option>
+                    <option value="公務員">公務員</option>
+                    <option value="自営業">自営業</option>
+                    <option value="経営者">経営者</option>
+                    <option value="フリーランス">フリーランス</option>
+                    <option value="専業主婦/主夫">専業主婦/主夫</option>
+                    <option value="パート・アルバイト">パート・アルバイト</option>
+                    <option value="学生">学生</option>
+                    <option value="無職">無職</option>
+                    <option value="年金受給者">年金受給者</option>
+                    <option value="医師">医師</option>
+                    <option value="看護師">看護師</option>
+                    <option value="教師・教員">教師・教員</option>
+                    <option value="エンジニア">エンジニア</option>
+                    <option value="デザイナー">デザイナー</option>
+                    <option value="営業職">営業職</option>
+                    <option value="接客・サービス業">接客・サービス業</option>
+                    <option value="製造業">製造業</option>
+                    <option value="建設業">建設業</option>
+                    <option value="農業・漁業">農業・漁業</option>
+                    <option value="その他">その他</option>
+                  </select>
                   {errors.occupation && (
                     <p className="text-red-500 text-xs mt-1">
                       {errors.occupation.message}
