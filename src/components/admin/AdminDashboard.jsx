@@ -478,6 +478,13 @@ const AdminDashboard = () => {
                                 <p className="text-sm text-gray-500">
                                   {formatDate(booking.date)} {booking.time}
                                 </p>
+                                {(booking.age || booking.occupation) && (
+                                  <p className="text-xs text-gray-400 mt-1">
+                                    {booking.age && `${booking.age}歳`}
+                                    {booking.age && booking.occupation && ' • '}
+                                    {booking.occupation && booking.occupation}
+                                  </p>
+                                )}
                               </div>
                             </div>
                           </div>

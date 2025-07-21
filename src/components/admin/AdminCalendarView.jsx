@@ -425,6 +425,12 @@ const AdminCalendarView = ({ selectedDate, onDateTimeSelect }) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-gray-900">{booking.customerName}</p>
+                      {booking.age && (
+                        <p className="text-sm text-gray-600">年齢: {booking.age}歳</p>
+                      )}
+                      {booking.occupation && (
+                        <p className="text-sm text-gray-600">職業: {booking.occupation}</p>
+                      )}
                       <p className="text-sm text-gray-600">{booking.phone}</p>
                       {booking.email && (
                         <p className="text-sm text-gray-600">{booking.email}</p>

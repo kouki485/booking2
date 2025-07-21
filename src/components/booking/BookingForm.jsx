@@ -308,7 +308,9 @@ const BookingForm = () => {
     const bookingData = {
       date: formatDateForSaving(selectedDate),
       time: selectedTime,
-      customerName: data.customerName.trim()
+      customerName: data.customerName.trim(),
+      age: parseInt(data.age),
+      occupation: data.occupation.trim()
     };
 
     // 管理者が設定した状態を最終確認
@@ -688,6 +690,47 @@ const BookingForm = () => {
                     </p>
                   )}
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    年齢<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    {...register('age', {
+                      required: '年齢を入力してください',
+                      min: { value: 1, message: '正しい年齢を入力してください' },
+                      max: { value: 120, message: '正しい年齢を入力してください' }
+                    })}
+                    className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
+                    placeholder="25"
+                  />
+                  {errors.age && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.age.message}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    職業<span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    {...register('occupation', {
+                      required: '職業を入力してください',
+                      maxLength: { value: 30, message: '職業は30文字以内で入力してください' }
+                    })}
+                    className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
+                    placeholder="会社員"
+                  />
+                  {errors.occupation && (
+                    <p className="text-red-500 text-xs mt-1">
+                      {errors.occupation.message}
+                    </p>
+                  )}
+                </div>
               </form>
             </div>
 
@@ -736,6 +779,12 @@ const BookingForm = () => {
                       </div>
                       <div className="text-sm mt-1">🕐 {selectedTime}</div>
                       <div className="text-sm mt-1">👤 {bookingResult.customerName}</div>
+                      {bookingResult.age && (
+                        <div className="text-sm mt-1">📝 年齢: {bookingResult.age}歳</div>
+                      )}
+                      {bookingResult.occupation && (
+                        <div className="text-sm mt-1">💼 職業: {bookingResult.occupation}</div>
+                      )}
                     </div>
                   </div>
                   <p className="text-gray-600 text-sm mb-4">
