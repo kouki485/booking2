@@ -41,10 +41,7 @@ const createICalEvent = (booking) => {
   const description = escapeICalText(
     `顧客名: ${booking.customerName}\n` +
     `年齢: ${booking.age || 'なし'}${booking.age ? '歳' : ''}\n` +
-    `職業: ${booking.occupation || 'なし'}\n` +
-    `電話番号: ${booking.phone || 'なし'}\n` +
-    `メールアドレス: ${booking.email || 'なし'}\n` +
-    `備考: ${booking.notes || 'なし'}`
+    `職業: ${booking.occupation || 'なし'}`
   );
 
   const uid = `booking-${booking.id}@booking-system`;
