@@ -56,18 +56,18 @@ const AdminDashboard = () => {
     const sortedBookings = [...bookings];
     
     if (order === 'datetime') {
-      // 日時順（日付→時間）でソート
+      // 日時順（日付→時間）でソート - 降順（遅い時間から早い時間）
       sortedBookings.sort((a, b) => {
-        const dateComparison = a.date.localeCompare(b.date);
+        const dateComparison = b.date.localeCompare(a.date);
         if (dateComparison !== 0) return dateComparison;
-        return a.time.localeCompare(b.time);
+        return b.time.localeCompare(a.time);
       });
     } else if (order === 'created') {
-      // 予約が入った順番（createdAt）でソート
+      // 予約が入った順番（createdAt）でソート - 降順（新しい予約から古い予約）
       sortedBookings.sort((a, b) => {
         const aCreated = a.createdAt ? new Date(a.createdAt.seconds * 1000) : new Date(0);
         const bCreated = b.createdAt ? new Date(b.createdAt.seconds * 1000) : new Date(0);
-        return aCreated - bCreated;
+        return bCreated - aCreated;
       });
     }
     
