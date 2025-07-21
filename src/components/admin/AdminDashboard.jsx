@@ -21,6 +21,7 @@ const AdminDashboard = () => {
   const [selectedTab, setSelectedTab] = useState(0);
   const [selectedDate, setSelectedDate] = useState(getCurrentDate());
   const [weekBookings, setWeekBookings] = useState([]);
+  const [sortOrder, setSortOrder] = useState('datetime'); // 'datetime' or 'created'
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -48,6 +49,36 @@ const AdminDashboard = () => {
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const day = date.getDate().toString().padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  // 予約一覧をソートする関数
+  const sortBookings = (bookings, order) => {
+    const sortedBookings = [...bookings];
+    
+    if (order === 'datetime') {
+      // 日時順（日付→時間）でソート
+      sortedBookings.sort((a, b) => {
+        const dateComparison = a.date.localeCompare(b.date);
+        if (dateComparison !== 0) return dateComparison;
+        return a.time.localeCompare(b.time);
+      });
+    } else if (order === 'created') {
+      // 予約が入った順番（createdAt）でソート
+      sortedBookings.sort((a, b) => {
+        const aCreated = a.createdAt ? new Date(a.createdAt.seconds * 1000) : new Date(0);
+        const bCreated = b.createdAt ? new Date(b.createdAt.seconds * 1000) : new Date(0);
+        return aCreated - bCreated;
+      });
+    }
+    
+    return sortedBookings;
+  };
+
+  // ソート順を変更する関数
+  const handleSortChange = (newOrder) => {
+    setSortOrder(newOrder);
+    const sortedBookings = sortBookings(weekBookings, newOrder);
+    setWeekBookings(sortedBookings);
   };
 
   // 認証チェック
@@ -100,7 +131,8 @@ const AdminDashboard = () => {
           return true;
         });
         
-        setWeekBookings(validBookings);
+        const sortedBookings = sortBookings(validBookings, sortOrder);
+        setWeekBookings(sortedBookings);
         
       } catch (err) {
         console.error('予約取得エラー:', err);
@@ -110,7 +142,7 @@ const AdminDashboard = () => {
 
     // 認証状態が確定した時にデータ取得
     loadWeekBookings();
-  }, [isAuthenticated, authLoading, fetchBookingsByDateRange]);
+  }, [isAuthenticated, authLoading, fetchBookingsByDateRange, sortOrder]);
 
   // 日時選択ハンドラ（管理者モード）
   const handleDateTimeSelect = (date, time) => {
@@ -214,7 +246,8 @@ const AdminDashboard = () => {
       const endDate = formatDateForQuery(endOfWeek);
       
       const updatedBookings = await fetchBookingsByDateRange(startDate, endDate);
-      setWeekBookings(updatedBookings);
+      const sortedUpdatedBookings = sortBookings(updatedBookings, sortOrder);
+      setWeekBookings(sortedUpdatedBookings);
       
       // 削除成功メッセージ
       alert(`${customerName}様の予約を削除しました`);
@@ -415,33 +448,61 @@ const AdminDashboard = () => {
                       現在の週の予約状況
                     </p>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={() => handleCalendarExport('week')}
-                      disabled={isExporting}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                      {isExporting ? '処理中...' : '今週'}
-                    </button>
-                    <button
-                      onClick={() => handleCalendarExport('month')}
-                      disabled={isExporting}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                      {isExporting ? '処理中...' : '今月'}
-                    </button>
-                    <button
-                      onClick={showDateRangeDialog}
-                      disabled={isExporting}
-                      className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
-                      期間選択
-                    </button>
-                    <div className="text-xs text-gray-500">
-                      Googleカレンダーエクスポート
+                  <div className="flex flex-col space-y-3">
+                    {/* ソートボタン */}
+                    <div className="flex items-center space-x-2">
+                      <span className="text-sm text-gray-600">並び順:</span>
+                      <button
+                        onClick={() => handleSortChange('datetime')}
+                        className={`inline-flex items-center px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                          sortOrder === 'datetime' 
+                            ? 'bg-blue-100 text-blue-700 border border-blue-300' 
+                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        時間順
+                      </button>
+                      <button
+                        onClick={() => handleSortChange('created')}
+                        className={`inline-flex items-center px-3 py-1 text-sm font-medium rounded-md transition-colors ${
+                          sortOrder === 'created' 
+                            ? 'bg-blue-100 text-blue-700 border border-blue-300' 
+                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        予約順
+                      </button>
+                    </div>
+                    
+                    {/* エクスポートボタン */}
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleCalendarExport('week')}
+                        disabled={isExporting}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                        {isExporting ? '処理中...' : '今週'}
+                      </button>
+                      <button
+                        onClick={() => handleCalendarExport('month')}
+                        disabled={isExporting}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                        {isExporting ? '処理中...' : '今月'}
+                      </button>
+                      <button
+                        onClick={showDateRangeDialog}
+                        disabled={isExporting}
+                        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                      >
+                        <ArrowDownTrayIcon className="h-4 w-4 mr-2" />
+                        期間選択
+                      </button>
+                      <div className="text-xs text-gray-500">
+                        Googleカレンダーエクスポート
+                      </div>
                     </div>
                   </div>
                 </div>
