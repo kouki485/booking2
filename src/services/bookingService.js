@@ -66,7 +66,9 @@ export const createBooking = async (bookingData) => {
     const securityChecks = {
       customerName: detectSQLInjection(bookingData.customerName) || detectXSS(bookingData.customerName),
       date: detectSQLInjection(bookingData.date) || detectXSS(bookingData.date),
-      time: detectSQLInjection(bookingData.time) || detectXSS(bookingData.time)
+      time: detectSQLInjection(bookingData.time) || detectXSS(bookingData.time),
+      age: bookingData.age && (detectSQLInjection(String(bookingData.age)) || detectXSS(String(bookingData.age))),
+      occupation: bookingData.occupation && (detectSQLInjection(bookingData.occupation) || detectXSS(bookingData.occupation))
     };
     
     if (Object.values(securityChecks).some(check => check)) {
@@ -83,6 +85,8 @@ export const createBooking = async (bookingData) => {
       customerName: sanitizeInput(bookingData.customerName, { maxLength: 50, allowSpecialChars: false }),
       date: sanitizeInput(bookingData.date, { maxLength: 10, allowSpecialChars: false }),
       time: sanitizeInput(bookingData.time, { maxLength: 5, allowSpecialChars: false }),
+      age: bookingData.age ? parseInt(bookingData.age) : null,
+      occupation: bookingData.occupation ? sanitizeInput(bookingData.occupation, { maxLength: 30, allowSpecialChars: false }) : null,
       status: 'confirmed',
       createdAt: new Date(),
       clientId: clientId.substring(0, 8) // 識別用に一部のみ保存
