@@ -99,7 +99,7 @@ export const createBooking = async (bookingData) => {
     if (!isBookable) {
       throw new Error('申し訳ございませんが、この時間枠は現在予約を受け付けておりません。');
     }
-
+    
     // 既存の予約数をチェック（容量制限）
     const timeSlotQuery = query(
       collection(db, 'bookings'),

@@ -32,8 +32,16 @@ const BookingForm = () => {
     register, 
     handleSubmit, 
     formState: { errors }, 
-    reset 
+    reset,
+    watch
   } = useForm();
+
+  // フォームの値を監視
+  const watchedFields = watch(['customerName', 'age', 'occupation']);
+  const [customerName, age, occupation] = watchedFields;
+
+  // 必須項目がすべて入力されているかチェック
+  const isFormValid = customerName && customerName.trim() && age && occupation;
 
   // 週の日付を生成（現在の週の基準日から7日間）
   const generateWeekDates = (startDate) => {
@@ -301,6 +309,22 @@ const BookingForm = () => {
   // フォーム送信
   const onSubmit = async (data) => {
     if (!selectedDate || !selectedTime) return;
+
+    // 必須項目のチェック
+    if (!data.customerName || !data.customerName.trim()) {
+      alert('お名前を入力してください');
+      return;
+    }
+    
+    if (!data.age) {
+      alert('年齢を選択してください');
+      return;
+    }
+    
+    if (!data.occupation) {
+      alert('職業を選択してください');
+      return;
+    }
 
     setIsSubmitting(true);
     
@@ -695,16 +719,17 @@ const BookingForm = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     年齢<span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="number"
+                  <select
                     {...register('age', {
-                      required: '年齢を入力してください',
-                      min: { value: 18, message: '18歳以上である必要があります' },
-                      max: { value: 90, message: '90歳以下である必要があります' }
+                      required: '年齢を選択してください'
                     })}
                     className="w-full px-3 py-2 sm:py-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent text-base"
-                    placeholder="25"
-                  />
+                  >
+                    <option value="">選択してください</option>
+                    {Array.from({length: 73}, (_, i) => 18 + i).map(age => (
+                      <option key={age} value={age}>{age}歳</option>
+                    ))}
+                  </select>
                   {errors.age && (
                     <p className="text-red-500 text-xs mt-1">
                       {errors.age.message}
@@ -761,8 +786,12 @@ const BookingForm = () => {
                 </button>
                 <button
                   onClick={handleSubmit(onSubmit)}
-                  disabled={isSubmitting}
-                  className="flex-1 py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 active:bg-green-700 disabled:opacity-50 transition-colors"
+                  disabled={isSubmitting || !isFormValid}
+                  className={`flex-1 py-3 rounded-lg font-medium transition-colors ${
+                    isFormValid && !isSubmitting
+                      ? 'bg-green-500 text-white hover:bg-green-600 active:bg-green-700'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
                 >
                   {isSubmitting ? '予約中...' : '予約する'}
                 </button>
